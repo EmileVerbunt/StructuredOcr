@@ -1,0 +1,266 @@
+@page "/cost-calculator"
+@using StructuredOcr.Models
+@using StructuredOcr.Services
+
+<div class="space-y-6 max-w-5xl">
+    <div>
+        <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <LucideIcon Name="calculator" Class="h-6 w-6" />
+            Cost Calculator
+        </h2>
+        <p class="text-sm text-muted-foreground mt-1">
+            Estimate and compare inference costs across all supported OCR services.
+        </p>
+    </div>
+
+    <BbCard>
+        <BbCardHeader>
+            <BbCardTitle>Estimate Parameters</BbCardTitle>
+            <BbCardDescription>Configure your document workload to see cost estimates.</BbCardDescription>
+        </BbCardHeader>
+        <BbCardContent>
+            <div class="grid gap-4 sm:grid-cols-3 max-w-2xl">
+                <div class="space-y-2">
+                    <BbLabel Class="font-semibold">Pages per Document</BbLabel>
+                    <BbInput @bind-Value="_pageCountStr" Type="InputType.Number" Placeholder="e.g. 10" />
+                </div>
+                <div class="space-y-2">
+                    <BbLabel Class="font-semibold">Documents per Month</BbLabel>
+                    <BbInput @bind-Value="_docsPerMonthStr" Type="InputType.Number" Placeholder="e.g. 500" />
+                </div>
+                <div class="space-y-2">
+                    <BbLabel Class="font-semibold">Scale (× requests)</BbLabel>
+                    <BbSelect TValue="string" @bind-Value="_selectedScale"
+                              Options="@_scaleOptions" Placeholder="Select scale..." />
+                </div>
+            </div>
+            <p class="text-xs text-muted-foreground mt-3">
+                The "At Scale" column shows cost × @_scaleMultiplier.ToString("N0") requests so you can compare tiny per-request differences meaningfully.
+            </p>
+        </BbCardContent>
+    </BbCard>
+
+    @if (_pageCount > 0)
+    {
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle>Cost Comparison — @_pageCount page@(_pageCount == 1 ? "" : "s") per document</BbCardTitle>
+                <BbCardDescription>
+                    All costs normalized to <strong>cost per page</strong> for direct comparison.
+                    Token-based models use estimated ~@PricingCatalog.ImageTokensPerPage input + ~@PricingCatalog.OutputTokensPerPage output tokens per page.
+                </BbCardDescription>
+            </BbCardHeader>
+            <BbCardContent Class="p-0">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b bg-muted/50">
+                                <th class="py-3 px-4 text-left font-medium">Service / Model</th>
+                                <th class="py-3 px-4 text-right font-medium">Cost / Page</th>
+                                <th class="py-3 px-4 text-right font-medium">Cost / Document</th>
+                                <th class="py-3 px-4 text-right font-medium">× @FormatMultiplier(_scaleMultiplier) docs</th>
+                                @if (_docsPerMonth > 0)
+                                {
+                                    <th class="py-3 px-4 text-right font-medium">Est. Monthly</th>
+                                }
+                                <th class="py-3 px-4 text-left font-medium">Pricing Basis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ string lastService = ""; }
+                            @foreach (var row in GetComparisonRows())
+                            {
+                                bool newSection = row.Service != lastService;
+                                lastService = row.Service;
+
+                                @if (newSection)
+                                {
+                                    <tr class="border-b bg-muted/30">
+                                        <td colspan="@(_docsPerMonth > 0 ? 6 : 5)" class="py-2 px-4 font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                                            @row.Service
+                                        </td>
+                                    </tr>
+                                }
+
+                                <tr class="border-b hover:bg-accent/30 transition-colors">
+                                    <td class="py-2.5 px-4">
+                                        <div class="font-medium">@row.DisplayName</div>
+                                        @if (row.Notes != null)
+                                        {
+                                            <div class="text-xs text-muted-foreground">@row.Notes</div>
+                                        }
+                                    </td>
+                                    <td class="py-2.5 px-4 text-right font-mono text-muted-foreground">
+                                        @FormatCost(row.CostPerPage)
+                                    </td>
+                                    <td class="py-2.5 px-4 text-right font-mono">
+                                        @FormatCost(row.CostPerDocument)
+                                    </td>
+                                    <td class="py-2.5 px-4 text-right">
+                                        <span class="font-semibold @GetCostColor(row.ScaledCost)">
+                                            @FormatCost(row.ScaledCost)
+                                        </span>
+                                    </td>
+                                    @if (_docsPerMonth > 0)
+                                    {
+                                        <td class="py-2.5 px-4 text-right">
+                                            <span class="font-semibold @GetCostColor(row.MonthlyCost)">
+                                                @FormatCost(row.MonthlyCost)
+                                            </span>
+                                        </td>
+                                    }
+                                    <td class="py-2.5 px-4 text-xs text-muted-foreground">
+                                        @row.PricingBasis
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </BbCardContent>
+        </BbCard>
+
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle Class="flex items-center gap-2">
+                    <LucideIcon Name="info" Class="h-4 w-4" />
+                    Assumptions
+                </BbCardTitle>
+            </BbCardHeader>
+            <BbCardContent>
+                <div class="grid gap-4 sm:grid-cols-2 text-sm text-muted-foreground">
+                    <div class="space-y-1">
+                        <p class="font-medium text-foreground">LLM Vision (Azure OpenAI)</p>
+                        <ul class="list-disc list-inside space-y-0.5">
+                            <li>~@PricingCatalog.ImageTokensPerPage image input tokens per page (high-detail, 1024×1536)</li>
+                            <li>~@PricingCatalog.SystemPromptTokens system prompt tokens (schema overhead)</li>
+                            <li>~@PricingCatalog.OutputTokensPerPage output tokens per page (structured extraction)</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="font-medium text-foreground">Mistral Document AI</p>
+                        <ul class="list-disc list-inside space-y-0.5">
+                            <li>Billed per page processed (standard API rate)</li>
+                            <li>Batch API available at 50% discount (not shown)</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="font-medium text-foreground">Content Understanding</p>
+                        <ul class="list-disc list-inside space-y-0.5">
+                            <li>Markdown: extraction ($5) + contextualization ($1) per 1K pages</li>
+                            <li>Structured: + LLM field extraction ($14.14) per 1K pages</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="font-medium text-foreground">General</p>
+                        <ul class="list-disc list-inside space-y-0.5">
+                            <li>Pay-as-you-go pricing — no commitment discounts applied</li>
+                            <li>Excludes storage, networking, and platform fees</li>
+                        </ul>
+                    </div>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
+</div>
+
+@code {
+    private string _pageCountStr = "10";
+    private string _docsPerMonthStr = "100";
+    private string _selectedScale = "1000";
+
+    private static readonly List<SelectOption<string>> _scaleOptions =
+    [
+        new("1", "× 1 (single request)"),
+        new("100", "× 100 requests"),
+        new("1000", "× 1,000 requests"),
+        new("10000", "× 10,000 requests"),
+        new("100000", "× 100,000 requests"),
+        new("1000000", "× 1,000,000 requests"),
+    ];
+
+    private int _pageCount => int.TryParse(_pageCountStr, out var v) && v > 0 ? v : 0;
+    private int _docsPerMonth => int.TryParse(_docsPerMonthStr, out var v) && v > 0 ? v : 0;
+    private int _scaleMultiplier => int.TryParse(_selectedScale, out var v) && v > 0 ? v : 1000;
+
+    private record ComparisonRow(
+        string Service,
+        string DisplayName,
+        decimal CostPerPage,
+        decimal CostPerDocument,
+        decimal ScaledCost,
+        decimal MonthlyCost,
+        string PricingBasis,
+        string? Notes);
+
+    private List<ComparisonRow> GetComparisonRows()
+    {
+        var rows = new List<ComparisonRow>();
+
+        // Mistral
+        AddRow(rows, "mistral-document-ai-2512", "Mistral", null);
+
+        // Content Understanding
+        AddRow(rows, "cu-documentSearch", "Content Understanding", "ExtractMarkdown (documentSearch)");
+        AddRow(rows, "cu-markdown", "Content Understanding", "ExtractMarkdown");
+        AddRow(rows, "cu-structured", "Content Understanding", "ExtractStructured");
+        AddRow(rows, "cu-classify", "Content Understanding", "Classify");
+
+        // LLM Vision models
+        foreach (var model in PricingCatalog.GetLlmVisionModels())
+        {
+            AddRow(rows, model.ModelId, "LLM Vision (Azure OpenAI)", null);
+        }
+
+        return rows.OrderBy(r => r.CostPerPage).ToList();
+    }
+
+    private void AddRow(List<ComparisonRow> rows, string modelId, string serviceGroup, string? strategy)
+    {
+        if (!PricingCatalog.Models.TryGetValue(modelId, out var pricing)) return;
+
+        decimal costPerPage = CostEstimator.CostPerPage(modelId);
+        decimal costPerDocument = costPerPage * _pageCount;
+        decimal scaledCost = costPerDocument * _scaleMultiplier;
+        decimal monthlyCost = costPerDocument * _docsPerMonth;
+
+        string pricingBasis = pricing.Unit == PricingUnit.Per1MTokens
+            ? $"${pricing.InputCostPer1M:F2} in / ${pricing.OutputCostPer1M:F2} out per 1M tokens"
+            : $"${pricing.InputCostPer1M:F2} per 1K pages";
+
+        rows.Add(new ComparisonRow(
+            serviceGroup,
+            pricing.DisplayName,
+            costPerPage,
+            costPerDocument,
+            scaledCost,
+            monthlyCost,
+            pricingBasis,
+            pricing.Notes));
+    }
+
+    private static string FormatCost(decimal cost)
+    {
+        if (cost == 0) return "$0.00";
+        if (cost < 0.01m) return $"${cost:F4}";
+        if (cost < 1m) return $"${cost:F3}";
+        if (cost < 1000m) return $"${cost:F2}";
+        return $"${cost:N0}";
+    }
+
+    private static string FormatMultiplier(int multiplier) => multiplier switch
+    {
+        >= 1_000_000 => $"{multiplier / 1_000_000}M",
+        >= 1_000 => $"{multiplier / 1_000}K",
+        _ => multiplier.ToString("N0")
+    };
+
+    private static string GetCostColor(decimal cost) => cost switch
+    {
+        0 => "",
+        < 0.01m => "text-green-600 dark:text-green-400",
+        < 0.10m => "text-yellow-600 dark:text-yellow-400",
+        < 1.00m => "text-orange-600 dark:text-orange-400",
+        _ => "text-red-600 dark:text-red-400"
+    };
+}

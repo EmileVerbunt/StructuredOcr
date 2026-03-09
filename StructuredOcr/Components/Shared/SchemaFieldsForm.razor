@@ -1,0 +1,41 @@
+@using StructuredOcr.Models
+
+@if (Fields.Count > 0)
+{
+    @for (int i = 0; i < Fields.Count; i++)
+    {
+        int idx = i;
+        <SchemaFieldEditor Field="Fields[idx]" OnRemove="() => RemoveField(idx)" />
+    }
+}
+else
+{
+    <p class="text-sm text-muted-foreground py-2">No fields defined. Click "Add Field" to start.</p>
+}
+
+<BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddField">
+    <LucideIcon Name="circle-plus" Class="h-3.5 w-3.5 mr-1" />Add Field
+</BbButton>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<SchemaField> Fields { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<List<SchemaField>> FieldsChanged { get; set; }
+
+    private async Task AddField()
+    {
+        Fields.Add(new SchemaField { Name = "new_field", Type = SchemaFieldType.String });
+        await FieldsChanged.InvokeAsync(Fields);
+    }
+
+    private async Task RemoveField(int index)
+    {
+        if (index < Fields.Count)
+        {
+            Fields.RemoveAt(index);
+            await FieldsChanged.InvokeAsync(Fields);
+        }
+    }
+}

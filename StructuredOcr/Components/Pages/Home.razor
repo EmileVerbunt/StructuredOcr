@@ -1,0 +1,98 @@
+@page "/"
+@using StructuredOcr.Services
+@inject OcrServiceRegistry Registry
+@inject ConfigStore ConfigStore
+
+<div class="max-w-4xl space-y-6">
+    <div>
+        <h2 class="text-2xl font-bold tracking-tight">OCR Benchmark Tool</h2>
+        <p class="text-muted-foreground">
+            Compare OCR + LLM hybrid services for structured data extraction, markdown conversion, and document classification.
+        </p>
+    </div>
+
+    <BbCard>
+        <BbCardHeader>
+            <BbCardTitle>How it works</BbCardTitle>
+        </BbCardHeader>
+        <BbCardContent>
+            <ol class="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                <li>Configure your service endpoints and API keys in <a href="/settings" class="underline text-foreground">Settings</a></li>
+                <li>Define or select extraction schemas in <a href="/schemas" class="underline text-foreground">Schemas</a></li>
+                <li>Navigate to a service page, upload a document, pick strategies, and run</li>
+                <li>Compare results: extracted markdown, structured data, timing, and page-level output</li>
+            </ol>
+        </BbCardContent>
+    </BbCard>
+
+    <div>
+        <h3 class="text-lg font-semibold mb-3">Available Services</h3>
+        <div class="grid gap-4 sm:grid-cols-2">
+            @foreach (var svc in _services)
+            {
+                string configKey = svc.ServiceName switch
+                {
+                    "Content Understanding" => "ContentUnderstanding",
+                    "LLM Vision" => "LlmVision",
+                    _ => svc.ServiceName
+                };
+                var config = ConfigStore.Get(configKey);
+                bool isConfigured = config != null && !string.IsNullOrWhiteSpace(config.Endpoint) && !string.IsNullOrWhiteSpace(config.ApiKey);
+                string href = svc.ServiceName switch
+                {
+                    "Mistral" => "/mistral",
+                    "Content Understanding" => "/content-understanding",
+                    "LLM Vision" => "/llm-vision",
+                    _ => "#"
+                };
+                string iconName = svc.ServiceName switch
+                {
+                    "Mistral" => "sparkles",
+                    "Content Understanding" => "cloud",
+                    "LLM Vision" => "eye",
+                    _ => "cpu"
+                };
+
+                <BbCard>
+                    <BbCardHeader>
+                        <div class="flex items-center justify-between">
+                            <BbCardTitle Class="flex items-center gap-2">
+                                <LucideIcon Name="@iconName" Class="h-5 w-5" />
+                                @svc.ServiceName
+                            </BbCardTitle>
+                            @if (isConfigured)
+                            {
+                                <BbBadge Variant="BadgeVariant.Default">
+                                    <LucideIcon Name="circle-check" Class="h-3 w-3 mr-1" />Ready
+                                </BbBadge>
+                            }
+                            else
+                            {
+                                <BbBadge Variant="BadgeVariant.Outline">
+                                    <LucideIcon Name="triangle-alert" Class="h-3 w-3 mr-1" />Not configured
+                                </BbBadge>
+                            }
+                        </div>
+                        <BbCardDescription>
+                            Strategies: @string.Join(", ", svc.Strategies)
+                        </BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardFooter>
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@href">
+                            <LucideIcon Name="arrow-right" Class="h-4 w-4 mr-1" />Open
+                        </BbButton>
+                    </BbCardFooter>
+                </BbCard>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<IOcrService> _services = [];
+
+    protected override void OnInitialized()
+    {
+        _services = Registry.GetAll().ToList();
+    }
+}

@@ -1,0 +1,825 @@
+@using StructuredOcr.Models
+@using StructuredOcr.Services
+@using Markdig
+
+<div class="grid gap-4 lg:grid-cols-2">
+    <BbCard>
+        <BbCardHeader>
+            <BbCardTitle Class="flex items-center gap-2">
+                <LucideIcon Name="upload" Class="h-4 w-4" />
+                File Upload
+            </BbCardTitle>
+        </BbCardHeader>
+        <BbCardContent>
+            <InputFile OnChange="OnFilesSelected" multiple class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif" />
+            @if (_selectedFiles.Count > 0)
+            {
+                <div class="mt-3 space-y-1">
+                    @foreach (var f in _selectedFiles)
+                    {
+                        <div class="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                            <span class="truncate">@f.Name</span>
+                            <BbBadge Variant="BadgeVariant.Secondary">@FormatSize(f.Size)</BbBadge>
+                        </div>
+                    }
+                </div>
+            }
+        </BbCardContent>
+    </BbCard>
+
+    <BbCard>
+        <BbCardHeader>
+            <BbCardTitle Class="flex items-center gap-2">
+                <LucideIcon Name="settings-2" Class="h-4 w-4" />
+                Configuration
+            </BbCardTitle>
+        </BbCardHeader>
+        <BbCardContent Class="space-y-4">
+            <div class="space-y-2">
+                <BbLabel Class="font-semibold">Schema</BbLabel>
+                <BbSelect TValue="string" @bind-Value="_selectedSchemaName"
+                          Options="@_schemaOptions" Placeholder="(None — raw extraction)" />
+            </div>
+
+            <div class="space-y-2">
+                <BbLabel Class="font-semibold">Strategies</BbLabel>
+                <div class="flex flex-wrap gap-4">
+                    @foreach (var strategy in Service.Strategies)
+                    {
+                        var s = strategy;
+                        var isChecked = _selectedStrategies.Contains(s);
+                        <div class="flex items-center gap-2">
+                            <BbCheckbox Checked="@isChecked" CheckedChanged="@(v => ToggleStrategy(s, v))" Id="@($"strat-{s}")" />
+                            <BbLabel For="@($"strat-{s}")">@s</BbLabel>
+                        </div>
+                    }
+                </div>
+            </div>
+        </BbCardContent>
+    </BbCard>
+</div>
+
+<div class="flex items-center gap-3 mt-4 mb-4">
+    <BbButton Size="ButtonSize.Large" OnClick="RunAnalysis" Disabled="@(!CanRun || _isRunning)"
+              Loading="@_isRunning" LoadingText="Analyzing...">
+        <LucideIcon Name="play" Class="h-4 w-4 mr-1" />Run Analysis
+    </BbButton>
+    @if (_results.Count > 0)
+    {
+        <BbButton Variant="ButtonVariant.Outline" OnClick="ClearResults">
+            <LucideIcon Name="rotate-ccw" Class="h-4 w-4 mr-1" />Clear
+        </BbButton>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <BbAlert Variant="AlertVariant.Warning" Class="mb-4">
+        <BbAlertDescription>@_errorMessage</BbAlertDescription>
+    </BbAlert>
+}
+
+@* Results — one card per strategy *@
+@foreach (var result in _results)
+{
+    <BbCard Class="mb-4">
+        <BbCardHeader Class="@(result.IsSuccess ? "border-b" : "border-b bg-destructive/10")">
+            <div class="flex items-center justify-between">
+                <BbCardTitle>@result.Strategy</BbCardTitle>
+                <div class="flex gap-2 flex-wrap">
+                    <BbBadge Variant="BadgeVariant.Default">
+                        <LucideIcon Name="timer" Class="h-3 w-3 mr-1" />@result.ElapsedMs.ToString("N0") ms
+                    </BbBadge>
+                    @if (result.TokensUsed.HasValue)
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">
+                            <LucideIcon Name="coins" Class="h-3 w-3 mr-1" />@result.TokensUsed @(Service.ServiceName == "Mistral" ? "pages" : "tokens") @(result.ModelsUsed.Count > 0 ? "(est.)" : "")
+                        </BbBadge>
+                    }
+                    @if (result.InputTokens.HasValue && result.OutputTokens.HasValue)
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">
+                            <LucideIcon Name="arrow-down" Class="h-3 w-3 mr-1" />@result.InputTokens.Value.ToString("N0") in / @result.OutputTokens.Value.ToString("N0") out
+                        </BbBadge>
+                    }
+                    @if (result.EstimatedCostUsd.HasValue)
+                    {
+                        <BbBadge Variant="@GetCostBadgeVariant(result.EstimatedCostUsd.Value)">
+                            <LucideIcon Name="dollar-sign" Class="h-3 w-3 mr-1" />@FormatCost(result.EstimatedCostUsd.Value)
+                        </BbBadge>
+                    }
+                    @if (result.TableCount.HasValue && result.TableCount > 0)
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">
+                            <LucideIcon Name="table" Class="h-3 w-3 mr-1" />@result.TableCount tables
+                        </BbBadge>
+                    }
+                    @if (result.FigureCount.HasValue && result.FigureCount > 0)
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">
+                            <LucideIcon Name="image" Class="h-3 w-3 mr-1" />@result.FigureCount figures
+                        </BbBadge>
+                    }
+                </div>
+            </div>
+        </BbCardHeader>
+        <BbCardContent Class="pt-4">
+            @if (!result.IsSuccess)
+            {
+                <BbAlert Variant="AlertVariant.Danger">
+                    <BbAlertDescription>@result.Error</BbAlertDescription>
+                </BbAlert>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(result.Summary))
+                {
+                    <div class="rounded-md border bg-muted/30 p-3 mb-3">
+                        <h4 class="text-sm font-semibold flex items-center gap-1.5 mb-1">
+                            <LucideIcon Name="file-text" Class="h-3.5 w-3.5" />Summary
+                        </h4>
+                        <p class="text-sm text-muted-foreground">@result.Summary</p>
+                    </div>
+                }
+
+                @if (result.ModelsUsed.Count > 0)
+                {
+                    <BbCollapsible Class="mb-3">
+                        <BbCollapsibleTrigger>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
+                                <LucideIcon Name="cpu" Class="h-3.5 w-3.5 mr-1" />Models &amp; Token Estimates
+                                <BbBadge Variant="BadgeVariant.Secondary" Class="ml-2">@result.ModelsUsed.Count models</BbBadge>
+                            </BbButton>
+                        </BbCollapsibleTrigger>
+                        <BbCollapsibleContent>
+                            <div class="mt-2 overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b">
+                                            <th class="py-2 px-3 text-left font-medium text-muted-foreground">Model</th>
+                                            <th class="py-2 px-3 text-left font-medium text-muted-foreground">Role</th>
+                                            <th class="py-2 px-3 text-right font-medium text-muted-foreground">Est. Input Tokens</th>
+                                            <th class="py-2 px-3 text-right font-medium text-muted-foreground">Est. Output Tokens</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var model in result.ModelsUsed)
+                                        {
+                                            <tr class="border-b">
+                                                <td class="py-2 px-3 font-medium">@model.DisplayName</td>
+                                                <td class="py-2 px-3 text-muted-foreground">@model.Role</td>
+                                                <td class="py-2 px-3 text-right font-mono">@(model.EstimatedInputTokens?.ToString("N0") ?? "—")</td>
+                                                <td class="py-2 px-3 text-right font-mono">@(model.EstimatedOutputTokens?.ToString("N0") ?? "—")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                                <p class="text-xs text-muted-foreground mt-2 italic">
+                                    Token counts are estimates (~4 chars/token). Actual billing is per page, not per token.
+                                </p>
+                            </div>
+                        </BbCollapsibleContent>
+                    </BbCollapsible>
+                }
+
+                @if (!string.IsNullOrEmpty(result.DocumentType))
+                {
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-sm font-semibold">Document Type:</span>
+                        <BbBadge Variant="BadgeVariant.Default">@result.DocumentType</BbBadge>
+                        @{
+                            string? confidence = TryExtractField(result.StructuredJson, "confidence");
+                            string? reasoning = TryExtractField(result.StructuredJson, "reasoning");
+                        }
+                        @if (confidence != null)
+                        {
+                            <BbBadge Variant="@GetConfidenceBadgeVariant(confidence)">@confidence confidence</BbBadge>
+                        }
+                    </div>
+                    @if (reasoning != null)
+                    {
+                        <p class="text-sm text-muted-foreground mb-3 italic">@reasoning</p>
+                    }
+                }
+
+                @if (string.IsNullOrWhiteSpace(result.StructuredJson) && result.Strategy != "ExtractMarkdown")
+                {
+                    <BbAlert Variant="AlertVariant.Info" Class="mb-3">
+                        <BbAlertDescription>No structured annotations returned by the API.</BbAlertDescription>
+                    </BbAlert>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(result.StructuredJson))
+                {
+                    <h4 class="text-sm font-semibold mb-2">Extracted Data</h4>
+                    var arrayItems = ParseStructuredArray(result.StructuredJson);
+
+                    @if (arrayItems != null && _usedSchema != null)
+                    {
+                        @for (int idx = 0; idx < arrayItems.Count; idx++)
+                        {
+                            var itemFields = arrayItems[idx];
+                            string dtVal = GetFieldValue(itemFields, "document_type");
+                            <BbCard Class="mb-2">
+                                <BbCardHeader Class="py-2">
+                                    <div class="flex items-center gap-2">
+                                        <BbBadge Variant="BadgeVariant.Secondary">Image @(idx + 1)</BbBadge>
+                                        @if (dtVal != "—")
+                                        {
+                                            <BbBadge>@dtVal</BbBadge>
+                                        }
+                                    </div>
+                                </BbCardHeader>
+                                <BbCardContent Class="p-0">
+                                    @RenderFieldTable(itemFields)
+                                </BbCardContent>
+                            </BbCard>
+                        }
+                    }
+                    else if (_usedSchema != null && ParseStructuredFields(result.StructuredJson).Count > 0)
+                    {
+                        var fields = ParseStructuredFields(result.StructuredJson);
+                        @RenderFieldTable(fields)
+                    }
+                    else
+                    {
+                        <pre class="ocr-output">@FormatJson(result.StructuredJson)</pre>
+                    }
+
+                    <BbCollapsible Class="mt-3">
+                        <BbCollapsibleTrigger>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
+                                <LucideIcon Name="code" Class="h-3.5 w-3.5 mr-1" />Raw JSON
+                            </BbButton>
+                        </BbCollapsibleTrigger>
+                        <BbCollapsibleContent>
+                            <pre class="ocr-output mt-2" style="max-height:200px;">@FormatJson(result.StructuredJson)</pre>
+                        </BbCollapsibleContent>
+                    </BbCollapsible>
+                }
+
+                @* Per-page accordion *@
+                @if (result.Pages.Count > 0)
+                {
+                    <h4 class="text-sm font-semibold mt-4 mb-2 flex items-center gap-2">
+                        Pages <BbBadge Variant="BadgeVariant.Secondary">@result.Pages.Count</BbBadge>
+                    </h4>
+                    <BbAccordion Type="AccordionType.Single" Collapsible>
+                        @for (int pi = 0; pi < result.Pages.Count; pi++)
+                        {
+                            var pg = result.Pages[pi];
+                            bool hasContent = !string.IsNullOrWhiteSpace(pg.Markdown) || !string.IsNullOrWhiteSpace(pg.StructuredJson);
+                            string preview = !string.IsNullOrWhiteSpace(pg.Markdown)
+                                ? (pg.Markdown.Length > 80 ? pg.Markdown[..80] + "…" : pg.Markdown)
+                                : "(empty)";
+                            <BbAccordionItem Value="@($"page-{pi}")">
+                                <BbAccordionTrigger>
+                                    <span class="flex items-center gap-2 text-sm">
+                                        <BbBadge Variant="BadgeVariant.Secondary">@(pi + 1)</BbBadge>
+                                        <span class="truncate text-muted-foreground" style="max-width:60%;">@preview</span>
+                                        @if (!string.IsNullOrWhiteSpace(pg.Markdown))
+                                        {
+                                            <BbBadge Variant="BadgeVariant.Outline" Class="ml-auto">@pg.Markdown.Length chars</BbBadge>
+                                        }
+                                    </span>
+                                </BbAccordionTrigger>
+                                <BbAccordionContent>
+                                    @if (!string.IsNullOrWhiteSpace(pg.Markdown))
+                                    {
+                                        <MarkdownViewer Content="@pg.Markdown" />
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(pg.StructuredJson))
+                                    {
+                                        <h4 class="text-sm font-semibold mt-3 mb-1">Structured</h4>
+                                        <pre class="ocr-output" style="max-height:200px;">@FormatJson(pg.StructuredJson)</pre>
+                                    }
+                                    @if (!hasContent)
+                                    {
+                                        <span class="text-sm text-muted-foreground">No content on this page.</span>
+                                    }
+                                </BbAccordionContent>
+                            </BbAccordionItem>
+                        }
+                    </BbAccordion>
+                }
+                else if (!string.IsNullOrWhiteSpace(result.RawMarkdown))
+                {
+                    <h4 class="text-sm font-semibold mt-3 mb-1">Markdown Output</h4>
+                    <MarkdownViewer Content="@result.RawMarkdown" />
+                }
+
+                <BbCollapsible Class="mt-3">
+                    <BbCollapsibleTrigger>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
+                            <LucideIcon Name="file-json" Class="h-3.5 w-3.5 mr-1" />Raw Service Response
+                        </BbButton>
+                    </BbCollapsibleTrigger>
+                    <BbCollapsibleContent>
+                        <pre class="ocr-output mt-2" style="max-height:200px;">@FormatJson(result.RawServiceResponse ?? "")</pre>
+                    </BbCollapsibleContent>
+                </BbCollapsible>
+            }
+        </BbCardContent>
+    </BbCard>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IOcrService Service { get; set; } = default!;
+
+    [Inject]
+    private SchemaService SchemaService { get; set; } = default!;
+
+    [Inject]
+    private CostEstimator CostEstimator { get; set; } = default!;
+
+    private List<IBrowserFile> _selectedFiles = [];
+    private List<UnifiedSchema> _schemas = [];
+    private HashSet<string> _selectedStrategies = [];
+    private string _selectedSchemaName = "";
+    private List<OcrResult> _results = [];
+    private UnifiedSchema? _usedSchema;
+    private bool _isRunning;
+    private string? _errorMessage;
+    private List<SelectOption<string>> _schemaOptions = [];
+
+    private bool CanRun => _selectedFiles.Count > 0 && _selectedStrategies.Count > 0;
+
+    protected override void OnInitialized()
+    {
+        _schemas = SchemaService.GetAll().ToList();
+        _schemaOptions = _schemas.Select(s => new SelectOption<string>(s.Name, s.Name)).ToList();
+    }
+
+    private void OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFiles = e.GetMultipleFiles(10).ToList();
+    }
+
+    private void ToggleStrategy(string strategy, bool selected)
+    {
+        if (selected) _selectedStrategies.Add(strategy);
+        else _selectedStrategies.Remove(strategy);
+    }
+
+    private async Task RunAnalysis()
+    {
+        _isRunning = true;
+        _errorMessage = null;
+        _results.Clear();
+        StateHasChanged();
+
+        _usedSchema = string.IsNullOrEmpty(_selectedSchemaName)
+            ? null
+            : SchemaService.Get(_selectedSchemaName);
+
+        var tasks = new List<Task<OcrResult>>();
+
+        foreach (var file in _selectedFiles)
+        {
+            foreach (var strategy in _selectedStrategies)
+            {
+                var ms = new MemoryStream();
+                await file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(ms);
+                ms.Position = 0;
+
+                var capturedStrategy = strategy;
+                tasks.Add(Task.Run(async () =>
+                {
+                    using (ms)
+                    {
+                        return await Service.AnalyzeAsync(ms, file.Name, capturedStrategy, _usedSchema);
+                    }
+                }));
+            }
+        }
+
+        try
+        {
+            var results = await Task.WhenAll(tasks);
+            _results = results.OrderBy(r => r.Strategy).ToList();
+
+            // Calculate estimated costs
+            foreach (var result in _results)
+            {
+                if (!result.IsSuccess) continue;
+
+                if (Service.ServiceName == "Mistral")
+                    CostEstimator.EstimateMistralCost(result);
+                else if (Service.ServiceName == "Content Understanding")
+                    CostEstimator.EstimateContentUnderstandingCost(result);
+                else if (Service is LlmVisionOcrService llm)
+                    CostEstimator.EstimateLlmVisionCost(result, llm.SelectedDeployment);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+        }
+
+        _isRunning = false;
+    }
+
+    private void ClearResults()
+    {
+        _results.Clear();
+        _usedSchema = null;
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:N1} KB";
+        return $"{bytes / (1024.0 * 1024.0):N1} MB";
+    }
+
+    private static string FormatJson(string json)
+    {
+        try
+        {
+            var parsed = UnwrapJsonString(json);
+            var doc = System.Text.Json.JsonDocument.Parse(parsed);
+            return System.Text.Json.JsonSerializer.Serialize(doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private static string UnwrapJsonString(string raw)
+    {
+        string s = raw.Trim();
+        if (s.StartsWith('"') && s.EndsWith('"'))
+        {
+            try
+            {
+                string? unwrapped = System.Text.Json.JsonSerializer.Deserialize<string>(s);
+                if (unwrapped != null) return unwrapped;
+            }
+            catch { }
+        }
+        return s;
+    }
+
+    private static Dictionary<string, string> ParseStructuredFields(string json)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            string unwrapped = UnwrapJsonString(json);
+            using var doc = System.Text.Json.JsonDocument.Parse(unwrapped);
+            FlattenElement(doc.RootElement, "", result);
+        }
+        catch { }
+        return result;
+    }
+
+    private static void FlattenElement(System.Text.Json.JsonElement el, string prefix, Dictionary<string, string> result)
+    {
+        if (el.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            foreach (var prop in el.EnumerateObject())
+            {
+                string key = string.IsNullOrEmpty(prefix) ? prop.Name : $"{prefix}.{prop.Name}";
+                if (prop.Value.ValueKind == System.Text.Json.JsonValueKind.Object ||
+                    prop.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    FlattenElement(prop.Value, key, result);
+                }
+                else
+                {
+                    result[key] = prop.Value.ToString();
+                }
+            }
+        }
+        else if (el.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            int i = 0;
+            foreach (var item in el.EnumerateArray())
+            {
+                FlattenElement(item, $"{prefix}[{i}]", result);
+                i++;
+            }
+        }
+        else
+        {
+            result[prefix] = el.ToString();
+        }
+    }
+
+    private static string GetFieldValue(Dictionary<string, string> fields, string fieldName)
+    {
+        if (fields.TryGetValue(fieldName, out var exact))
+            return exact;
+
+        var subKeys = fields
+            .Where(f => f.Key.StartsWith(fieldName + "[", StringComparison.OrdinalIgnoreCase) ||
+                        f.Key.StartsWith(fieldName + ".", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (subKeys.Count > 0)
+        {
+            return string.Join("\n", subKeys.Select(kv =>
+            {
+                string suffix = kv.Key[fieldName.Length..];
+                return $"{suffix}: {kv.Value}";
+            }));
+        }
+
+        return "—";
+    }
+
+    private static string FormatFieldName(string name)
+    {
+        return string.Join(' ', name.Split('_', '.').Select(w =>
+            w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w));
+    }
+
+    private static List<Dictionary<string, string>>? ParseStructuredArray(string json)
+    {
+        try
+        {
+            string unwrapped = UnwrapJsonString(json);
+            using var doc = System.Text.Json.JsonDocument.Parse(unwrapped);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+                return null;
+
+            var results = new List<Dictionary<string, string>>();
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (item.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    string innerJson = item.GetString() ?? "";
+                    try
+                    {
+                        using var innerDoc = System.Text.Json.JsonDocument.Parse(innerJson);
+                        FlattenElement(innerDoc.RootElement, "", fields);
+                    }
+                    catch
+                    {
+                        fields["value"] = innerJson;
+                    }
+                }
+                else
+                {
+                    FlattenElement(item, "", fields);
+                }
+                results.Add(fields);
+            }
+            return results.Count > 0 ? results : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private RenderFragment RenderFieldTable(Dictionary<string, string> fields) => builder =>
+    {
+        if (_usedSchema == null) return;
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(0, "class", "space-y-0 text-sm");
+
+        // Header row
+        builder.OpenElement(1, "div");
+        builder.AddAttribute(1, "class", "grid grid-cols-[1fr_1fr] border-b py-2 px-3");
+        builder.OpenElement(2, "span");
+        builder.AddAttribute(2, "class", "font-medium text-muted-foreground");
+        builder.AddContent(3, "Field");
+        builder.CloseElement();
+        builder.OpenElement(4, "span");
+        builder.AddAttribute(4, "class", "font-medium text-muted-foreground");
+        builder.AddContent(5, "Value");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        // Track which flat-keys have been rendered by the schema walk
+        var rendered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        RenderSchemaFields(builder, _usedSchema.Fields, fields, "", 0, rendered);
+
+        // Render any extra fields not in the schema
+        foreach (var kv in fields.Where(f => !rendered.Contains(f.Key)))
+        {
+            builder.OpenElement(6, "div");
+            builder.AddAttribute(6, "class", "grid grid-cols-[1fr_1fr] border-b py-1.5 px-3 bg-yellow-50 dark:bg-yellow-950/20");
+            builder.OpenElement(7, "div");
+            builder.OpenElement(8, "span");
+            builder.AddAttribute(8, "class", "font-medium");
+            builder.AddContent(9, FormatFieldName(kv.Key));
+            builder.CloseElement();
+            builder.AddContent(10, " ");
+            builder.OpenElement(11, "span");
+            builder.AddAttribute(11, "class", "text-xs text-muted-foreground");
+            builder.AddContent(12, "(extra)");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(13, "span");
+            builder.AddAttribute(13, "class", "font-mono");
+            builder.AddContent(14, kv.Value);
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.CloseElement(); // root div
+    };
+
+    /// <summary>
+    /// Recursively renders schema fields with collapsible sections for Object/Array parents.
+    /// </summary>
+    private static void RenderSchemaFields(
+        Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder,
+        List<SchemaField> schemaFields,
+        Dictionary<string, string> flatFields,
+        string prefix,
+        int depth,
+        HashSet<string> rendered)
+    {
+        foreach (var field in schemaFields)
+        {
+            string fullKey = string.IsNullOrEmpty(prefix) ? field.Name : $"{prefix}.{field.Name}";
+            bool hasChildren = field.Children is { Count: > 0 };
+            bool isArray = field.Type == SchemaFieldType.Array;
+
+            if (hasChildren && (field.Type == SchemaFieldType.Object || isArray))
+            {
+                // Count how many child values are populated
+                int childCount = flatFields.Keys.Count(k =>
+                    k.StartsWith(fullKey + ".", StringComparison.OrdinalIgnoreCase) ||
+                    k.StartsWith(fullKey + "[", StringComparison.OrdinalIgnoreCase));
+
+                // Collapsible section for parent objects/arrays
+                builder.OpenComponent<BbCollapsible>(0);
+                builder.AddAttribute(1, "DefaultOpen", false);
+                builder.AddAttribute(2, "Class", "border-b");
+                builder.AddAttribute(3, "ChildContent", (RenderFragment)(inner =>
+                {
+                    // Trigger
+                    inner.OpenComponent<BbCollapsibleTrigger>(0);
+                    inner.AddAttribute(1, "AsChild", false);
+                    inner.AddAttribute(2, "Class", $"w-full flex items-center justify-between py-2 px-3 hover:bg-accent/30 transition-colors cursor-pointer {(depth == 0 ? "bg-muted/40" : "bg-muted/20")} group");
+                    inner.AddAttribute(3, "ChildContent", (RenderFragment)(trigger =>
+                    {
+                        trigger.OpenElement(0, "div");
+                        trigger.AddAttribute(0, "style", $"padding-left:{depth * 16}px;");
+                        trigger.AddAttribute(0, "class", "flex items-center gap-2 w-full");
+
+                        // Chevron arrow that rotates on open
+                        trigger.OpenComponent<LucideIcon>(1);
+                        trigger.AddAttribute(1, "Name", "chevron-right");
+                        trigger.AddAttribute(1, "Class", "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-90");
+                        trigger.CloseComponent();
+
+                        trigger.OpenElement(2, "span");
+                        trigger.AddAttribute(2, "class", "font-semibold text-xs uppercase tracking-wider text-muted-foreground");
+                        trigger.AddContent(3, FormatFieldName(field.Name));
+                        trigger.CloseElement();
+                        if (childCount > 0)
+                        {
+                            trigger.OpenElement(4, "span");
+                            trigger.AddAttribute(4, "class", "text-[10px] text-muted-foreground/60 font-normal normal-case tracking-normal");
+                            trigger.AddContent(5, $"({childCount})");
+                            trigger.CloseElement();
+                        }
+                        if (!string.IsNullOrEmpty(field.Description))
+                        {
+                            trigger.OpenElement(6, "span");
+                            trigger.AddAttribute(6, "class", "text-xs text-muted-foreground font-normal normal-case tracking-normal hidden sm:inline ml-auto");
+                            trigger.AddContent(7, field.Description);
+                            trigger.CloseElement();
+                        }
+                        trigger.CloseElement();
+                    }));
+                    inner.CloseComponent();
+
+                    // Content
+                    inner.OpenComponent<BbCollapsibleContent>(10);
+                    inner.AddAttribute(11, "ChildContent", (RenderFragment)(content =>
+                    {
+                        if (isArray)
+                        {
+                            var arrayKeys = flatFields.Keys
+                                .Where(k => k.StartsWith(fullKey + "[", StringComparison.OrdinalIgnoreCase))
+                                .ToList();
+
+                            var indices = arrayKeys
+                                .Select(k =>
+                                {
+                                    int start = fullKey.Length + 1;
+                                    int end = k.IndexOf(']', start);
+                                    return end > start && int.TryParse(k[start..end], out var idx) ? idx : -1;
+                                })
+                                .Where(i => i >= 0)
+                                .Distinct()
+                                .OrderBy(i => i)
+                                .ToList();
+
+                            foreach (int idx in indices)
+                            {
+                                string itemPrefix = $"{fullKey}[{idx}]";
+                                content.OpenElement(0, "div");
+                                content.AddAttribute(0, "class", "border-b border-dashed py-1 px-3");
+                                content.AddAttribute(0, "style", $"padding-left:{(depth + 1) * 16}px;");
+                                content.OpenElement(1, "span");
+                                content.AddAttribute(1, "class", "text-xs font-semibold text-muted-foreground");
+                                content.AddContent(2, $"#{idx + 1}");
+                                content.CloseElement();
+                                content.CloseElement();
+
+                                RenderSchemaFields(content, field.Children!, flatFields, itemPrefix, depth + 2, rendered);
+                            }
+
+                            foreach (var k in arrayKeys) rendered.Add(k);
+                        }
+                        else
+                        {
+                            RenderSchemaFields(content, field.Children!, flatFields, fullKey, depth + 1, rendered);
+                        }
+                    }));
+                    inner.CloseComponent();
+                }));
+                builder.CloseComponent();
+            }
+            else
+            {
+                // Leaf field — render as a value row
+                string val = "—";
+                if (flatFields.TryGetValue(fullKey, out var exact))
+                {
+                    val = exact;
+                    rendered.Add(fullKey);
+                }
+
+                builder.OpenElement(0, "div");
+                builder.AddAttribute(0, "class", "grid grid-cols-[1fr_1fr] border-b py-1.5 px-3");
+
+                builder.OpenElement(1, "div");
+                builder.AddAttribute(1, "style", $"padding-left:{depth * 16}px;");
+                builder.OpenElement(2, "span");
+                builder.AddAttribute(2, "class", "font-medium");
+                builder.AddContent(3, FormatFieldName(field.Name));
+                builder.CloseElement();
+                if (!string.IsNullOrEmpty(field.Description))
+                {
+                    builder.OpenElement(4, "br");
+                    builder.CloseElement();
+                    builder.OpenElement(5, "span");
+                    builder.AddAttribute(5, "class", "text-xs text-muted-foreground");
+                    builder.AddContent(6, field.Description);
+                    builder.CloseElement();
+                }
+                builder.CloseElement(); // field name div
+
+                builder.OpenElement(7, "span");
+                builder.AddAttribute(7, "class", "font-mono");
+                if (val.Length > 200)
+                {
+                    builder.OpenElement(8, "div");
+                    builder.AddAttribute(8, "style", "max-height:150px; overflow-y:auto; white-space:pre-wrap;");
+                    builder.AddContent(9, val);
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.AddContent(10, val);
+                }
+                builder.CloseElement(); // value span
+
+                builder.CloseElement(); // row div
+            }
+        }
+    }
+
+    private static string FormatCost(decimal cost) =>
+        cost < 0.01m ? $"${cost:F4}" : $"${cost:F2}";
+
+    private static BadgeVariant GetCostBadgeVariant(decimal cost) => cost switch
+    {
+        < 0.01m => BadgeVariant.Default,
+        < 0.10m => BadgeVariant.Secondary,
+        _ => BadgeVariant.Outline
+    };
+
+    private static string? TryExtractField(string? json, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty(fieldName, out var val) &&
+                val.ValueKind == System.Text.Json.JsonValueKind.String)
+                return val.GetString();
+        }
+        catch { }
+        return null;
+    }
+
+    private static BadgeVariant GetConfidenceBadgeVariant(string confidence) => confidence.ToLowerInvariant() switch
+    {
+        "high" => BadgeVariant.Default,
+        "medium" => BadgeVariant.Secondary,
+        _ => BadgeVariant.Outline
+    };
+}

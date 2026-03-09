@@ -1,0 +1,215 @@
+@page "/settings"
+@using StructuredOcr.Models
+@using StructuredOcr.Services
+@inject ConfigStore ConfigStore
+@inject OcrServiceRegistry Registry
+@inject IJSRuntime JS
+
+<div class="space-y-6 max-w-4xl">
+    <div>
+        <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <LucideIcon Name="settings" Class="h-6 w-6" />
+            Service Settings
+        </h2>
+        <p class="text-sm text-muted-foreground mt-1">
+            Settings are stored in your browser's localStorage so each user keeps their own configuration.
+        </p>
+    </div>
+
+    @foreach (var svc in _services)
+    {
+        var config = GetOrCreateConfig(svc.ServiceName);
+        bool isConfigured = !string.IsNullOrWhiteSpace(config.Endpoint) && !string.IsNullOrWhiteSpace(config.ApiKey);
+        <BbCard>
+            <BbCardHeader>
+                <div class="flex items-center justify-between">
+                    <BbCardTitle>@svc.ServiceName</BbCardTitle>
+                    <div class="flex gap-2">
+                        @if (isConfigured)
+                        {
+                            <BbBadge Variant="BadgeVariant.Default">
+                                <LucideIcon Name="circle-check" Class="h-3 w-3 mr-1" />Configured
+                            </BbBadge>
+                        }
+                        else
+                        {
+                            <BbBadge Variant="BadgeVariant.Outline">
+                                <LucideIcon Name="triangle-alert" Class="h-3 w-3 mr-1" />Not configured
+                            </BbBadge>
+                        }
+                        <BbBadge Variant="BadgeVariant.Secondary">@svc.Strategies.Length strategies</BbBadge>
+                    </div>
+                </div>
+            </BbCardHeader>
+            <BbCardContent Class="space-y-4">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="space-y-2">
+                        <BbLabel>Endpoint</BbLabel>
+                        <BbInput @bind-Value="config.Endpoint" Placeholder="https://..." />
+                    </div>
+                    <div class="space-y-2">
+                        <BbLabel>API Key</BbLabel>
+                        <div class="flex gap-2">
+                            <BbInput @bind-Value="config.ApiKey"
+                                     Type="@(_showKeys.Contains(svc.ServiceName) ? InputType.Text : InputType.Password)"
+                                     Placeholder="Enter API key" Class="flex-1" />
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Icon"
+                                      OnClick="() => ToggleKeyVisibility(svc.ServiceName)">
+                                <LucideIcon Name="@(_showKeys.Contains(svc.ServiceName) ? "eye-off" : "eye")" Class="h-4 w-4" />
+                            </BbButton>
+                        </div>
+                    </div>
+                    @if (svc.ServiceName == "Mistral")
+                    {
+                        <div class="space-y-2">
+                            <BbLabel>Model Name</BbLabel>
+                            <BbInput @bind-Value="config.ModelName" Placeholder="mistral-document-ai-2512" />
+                        </div>
+                    }
+                    @if (svc.ServiceName == "Content Understanding")
+                    {
+                        <div class="space-y-2">
+                            <BbLabel>Analyzer ID</BbLabel>
+                            <BbInput Value="@GetAnalyzerId(config)"
+                                     ValueChanged="@(v => SetAnalyzerId(config, v))" />
+                        </div>
+                    }
+                </div>
+                @if (svc.ServiceName == "LLM Vision")
+                {
+                    <div class="space-y-2">
+                        <BbLabel>Deployments</BbLabel>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var d in config.DeploymentNames)
+                            {
+                                var dep = d;
+                                <BbBadge Variant="BadgeVariant.Secondary" Class="gap-1 py-1.5 px-3">
+                                    @dep
+                                    <button type="button" class="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                                            @onclick="() => RemoveDeployment(config, dep)">
+                                        <LucideIcon Name="x" Class="h-3 w-3" />
+                                    </button>
+                                </BbBadge>
+                            }
+                        </div>
+                        <div class="flex gap-2 max-w-sm">
+                            <BbInput @bind-Value="_newDeployment" Placeholder="Deployment name (e.g. gpt-4o)" Class="flex-1" />
+                            <BbButton Variant="ButtonVariant.Outline" OnClick="() => AddDeployment(config)">
+                                <LucideIcon Name="plus" Class="h-4 w-4 mr-1" />Add
+                            </BbButton>
+                        </div>
+                    </div>
+                    <div class="space-y-2 max-w-sm">
+                        <BbLabel>API Version</BbLabel>
+                        <BbInput Value="@GetApiVersion(config)"
+                                 ValueChanged="@(v => SetApiVersion(config, v))" />
+                    </div>
+                }
+            </BbCardContent>
+        </BbCard>
+    }
+
+    <div class="flex items-center gap-3">
+        <BbButton OnClick="Save">
+            <LucideIcon Name="check" Class="h-4 w-4 mr-1" />Save Settings
+        </BbButton>
+        @if (_saved)
+        {
+            <span class="text-sm text-green-600 flex items-center gap-1">
+                <LucideIcon Name="circle-check" Class="h-4 w-4" />Saved!
+            </span>
+        }
+    </div>
+</div>
+
+@code {
+    private List<IOcrService> _services = [];
+    private Dictionary<string, OcrServiceConfig> _editConfigs = [];
+    private HashSet<string> _showKeys = [];
+    private bool _saved;
+    private string _newDeployment = "";
+
+    protected override void OnInitialized()
+    {
+        _services = Registry.GetAll().ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", ConfigStore.StorageKey);
+            if (!string.IsNullOrEmpty(json))
+            {
+                ConfigStore.LoadFromJson(json);
+            }
+            StateHasChanged();
+        }
+    }
+
+    private OcrServiceConfig GetOrCreateConfig(string serviceName)
+    {
+        string configKey = serviceName switch
+        {
+            "Content Understanding" => "ContentUnderstanding",
+            "LLM Vision" => "LlmVision",
+            _ => serviceName
+        };
+
+        if (!_editConfigs.TryGetValue(serviceName, out var config))
+        {
+            config = ConfigStore.Get(configKey) ?? new OcrServiceConfig { ServiceName = configKey };
+            config = new OcrServiceConfig
+            {
+                ServiceName = configKey,
+                Endpoint = config.Endpoint,
+                ApiKey = config.ApiKey,
+                ModelName = config.ModelName,
+                DeploymentNames = new List<string>(config.DeploymentNames),
+                ExtraSettings = new Dictionary<string, string>(config.ExtraSettings)
+            };
+            _editConfigs[serviceName] = config;
+        }
+        return config;
+    }
+
+    private void ToggleKeyVisibility(string name)
+    {
+        if (!_showKeys.Remove(name)) _showKeys.Add(name);
+    }
+
+    private async Task Save()
+    {
+        foreach (var config in _editConfigs.Values)
+        {
+            ConfigStore.Set(config);
+        }
+        var json = ConfigStore.SerializeAll();
+        await JS.InvokeVoidAsync("localStorage.setItem", ConfigStore.StorageKey, json);
+        _saved = true;
+    }
+
+    private static string GetAnalyzerId(OcrServiceConfig config) =>
+        config.ExtraSettings.GetValueOrDefault("AnalyzerId", "prebuilt-document");
+
+    private static void SetAnalyzerId(OcrServiceConfig config, string value) =>
+        config.ExtraSettings["AnalyzerId"] = value ?? "prebuilt-document";
+
+    private void AddDeployment(OcrServiceConfig config)
+    {
+        if (!string.IsNullOrWhiteSpace(_newDeployment) && !config.DeploymentNames.Contains(_newDeployment))
+        {
+            config.DeploymentNames.Add(_newDeployment.Trim());
+            _newDeployment = "";
+        }
+    }
+
+    private static void RemoveDeployment(OcrServiceConfig config, string name) =>
+        config.DeploymentNames.Remove(name);
+
+    private static string GetApiVersion(OcrServiceConfig config) =>
+        config.ExtraSettings.GetValueOrDefault("ApiVersion", "2025-01-01-preview");
+
+    private static void SetApiVersion(OcrServiceConfig config, string value) =>
+        config.ExtraSettings["ApiVersion"] = value ?? "2025-01-01-preview";
+}

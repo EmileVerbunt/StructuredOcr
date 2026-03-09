@@ -1,0 +1,208 @@
+@page "/schemas"
+@using StructuredOcr.Models
+@using StructuredOcr.Services
+@using StructuredOcr.Components.Shared
+@inject SchemaService SchemaService
+
+<div class="space-y-4">
+    <div>
+        <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <LucideIcon Name="braces" Class="h-6 w-6" />
+            Schema Management
+        </h2>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[300px_1fr]">
+        <BbCard>
+            <BbCardHeader>
+                <div class="flex items-center justify-between">
+                    <BbCardTitle>Schemas</BbCardTitle>
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="NewSchema">
+                        <LucideIcon Name="plus" Class="h-4 w-4 mr-1" />New
+                    </BbButton>
+                </div>
+            </BbCardHeader>
+            <BbCardContent Class="p-0">
+                <div class="flex flex-col">
+                    @foreach (var schema in _schemas)
+                    {
+                        bool isActive = schema.Name == _editing?.Name;
+                        <button class="flex flex-col items-start gap-1 px-4 py-3 text-left text-sm border-b transition-colors hover:bg-accent @(isActive ? "bg-accent" : "")"
+                                @onclick="() => SelectSchema(schema)">
+                            <span class="font-medium">@schema.Name</span>
+                            <span class="text-xs text-muted-foreground">
+                                @(schema.Description ?? "No description") — @schema.Fields.Count fields
+                            </span>
+                        </button>
+                    }
+                </div>
+            </BbCardContent>
+        </BbCard>
+
+        <div>
+            @if (_editing != null)
+            {
+                <BbCard>
+                    <BbCardHeader>
+                        <div class="flex items-center justify-between">
+                            <BbCardTitle>@(_isNew ? "New Schema" : $"Edit: {_editing.Name}")</BbCardTitle>
+                            <div class="flex gap-2">
+                                @if (!_isNew)
+                                {
+                                    <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" OnClick="DeleteSchema">
+                                        <LucideIcon Name="trash-2" Class="h-4 w-4" />
+                                    </BbButton>
+                                }
+                                <BbButton Size="ButtonSize.Small" OnClick="SaveSchema">
+                                    <LucideIcon Name="check" Class="h-4 w-4 mr-1" />Save
+                                </BbButton>
+                            </div>
+                        </div>
+                    </BbCardHeader>
+                    <BbCardContent Class="space-y-4">
+                        <div class="space-y-2">
+                            <BbLabel>Name</BbLabel>
+                            <BbInput @bind-Value="_editing.Name" Placeholder="Schema name" />
+                        </div>
+                        <div class="space-y-2">
+                            <BbLabel>Description</BbLabel>
+                            <BbInput @bind-Value="_editing.Description" Placeholder="Optional description" />
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <BbLabel Class="font-semibold">Fields</BbLabel>
+                            <BbTabs Value="@(_useJsonEditor ? "json" : "form")" OnValueChange="@(v => { if (v == "json") SwitchToJson(); else SwitchToForm(); })">
+                                <BbTabsList>
+                                    <BbTabsTrigger Value="form">
+                                        <LucideIcon Name="list-checks" Class="h-3.5 w-3.5 mr-1" />Form
+                                    </BbTabsTrigger>
+                                    <BbTabsTrigger Value="json">
+                                        <LucideIcon Name="code" Class="h-3.5 w-3.5 mr-1" />JSON
+                                    </BbTabsTrigger>
+                                </BbTabsList>
+                            </BbTabs>
+                        </div>
+
+                        @if (_useJsonEditor)
+                        {
+                            <BbTextarea @bind-Value="_jsonText" Class="schema-editor font-mono" Rows="15" />
+                        }
+                        else
+                        {
+                            <SchemaFieldsForm Fields="_editing.Fields" />
+                        }
+
+                        @if (!string.IsNullOrEmpty(_parseError))
+                        {
+                            <BbAlert Variant="AlertVariant.Danger">
+                                <BbAlertDescription>@_parseError</BbAlertDescription>
+                            </BbAlert>
+                        }
+                    </BbCardContent>
+                </BbCard>
+            }
+            else
+            {
+                <div class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <LucideIcon Name="circle-arrow-left" Class="h-12 w-12 mb-3" />
+                    <p class="text-sm">Select a schema or create a new one</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<UnifiedSchema> _schemas = [];
+    private UnifiedSchema? _editing;
+    private string _jsonText = "";
+    private string? _parseError;
+    private bool _isNew;
+    private bool _useJsonEditor;
+
+    protected override void OnInitialized()
+    {
+        RefreshList();
+    }
+
+    private void RefreshList()
+    {
+        _schemas = SchemaService.GetAll().ToList();
+    }
+
+    private void SelectSchema(UnifiedSchema schema)
+    {
+        _editing = schema;
+        _isNew = false;
+        _parseError = null;
+        _useJsonEditor = false;
+        _jsonText = System.Text.Json.JsonSerializer.Serialize(schema.Fields,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private void NewSchema()
+    {
+        _editing = new UnifiedSchema { Name = "New Schema" };
+        _isNew = true;
+        _parseError = null;
+        _useJsonEditor = false;
+        _jsonText = "[\n  {\n    \"Name\": \"field_name\",\n    \"Type\": \"String\",\n    \"Description\": \"Description\",\n    \"Required\": true\n  }\n]";
+    }
+
+    private void SwitchToJson()
+    {
+        if (_editing is null || _useJsonEditor) return;
+        _jsonText = System.Text.Json.JsonSerializer.Serialize(_editing.Fields,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        _parseError = null;
+        _useJsonEditor = true;
+    }
+
+    private void SwitchToForm()
+    {
+        if (_editing is null || !_useJsonEditor) return;
+        try
+        {
+            var fields = System.Text.Json.JsonSerializer.Deserialize<List<SchemaField>>(_jsonText);
+            if (fields != null) _editing.Fields = fields;
+            _parseError = null;
+            _useJsonEditor = false;
+        }
+        catch (Exception ex)
+        {
+            _parseError = $"Cannot switch to Form — invalid JSON: {ex.Message}";
+        }
+    }
+
+    private void SaveSchema()
+    {
+        if (_editing is null) return;
+
+        if (_useJsonEditor)
+        {
+            try
+            {
+                var fields = System.Text.Json.JsonSerializer.Deserialize<List<SchemaField>>(_jsonText);
+                if (fields != null) _editing.Fields = fields;
+                _parseError = null;
+            }
+            catch (Exception ex)
+            {
+                _parseError = $"Invalid JSON: {ex.Message}";
+                return;
+            }
+        }
+
+        SchemaService.AddOrUpdate(_editing);
+        _isNew = false;
+        RefreshList();
+    }
+
+    private void DeleteSchema()
+    {
+        if (_editing is null) return;
+        SchemaService.Delete(_editing.Name);
+        _editing = null;
+        RefreshList();
+    }
+}

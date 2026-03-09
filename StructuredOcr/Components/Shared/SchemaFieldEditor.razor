@@ -1,0 +1,72 @@
+@using StructuredOcr.Models
+
+<div class="rounded-md border p-3 mb-2 space-y-3">
+    <div class="grid gap-3 sm:grid-cols-[1fr_auto_2fr_auto_auto] items-end">
+        <div class="space-y-1">
+            <BbLabel Class="text-xs">Name</BbLabel>
+            <BbInput @bind-Value="Field.Name" Placeholder="field_name" Class="h-8 text-sm" />
+        </div>
+        <div class="space-y-1">
+            <BbLabel Class="text-xs">Type</BbLabel>
+            <BbNativeSelect TValue="string" Value="@Field.Type.ToString()" ValueChanged="@(v => { if (v != null) Field.Type = Enum.Parse<SchemaFieldType>(v); })" Class="h-8 text-sm">
+                @foreach (var t in Enum.GetValues<SchemaFieldType>())
+                {
+                    <option value="@t">@t</option>
+                }
+            </BbNativeSelect>
+        </div>
+        <div class="space-y-1">
+            <BbLabel Class="text-xs">Description</BbLabel>
+            <BbInput @bind-Value="Field.Description" Placeholder="Optional description" Class="h-8 text-sm" />
+        </div>
+        <div class="flex items-center gap-2 pb-0.5">
+            <BbCheckbox @bind-Checked="Field.Required" Id="@_reqId" />
+            <BbLabel For="@_reqId" Class="text-xs">Required</BbLabel>
+        </div>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.IconSmall" OnClick="OnRemove" AriaLabel="Remove field">
+            <LucideIcon Name="trash-2" Class="h-4 w-4 text-destructive" />
+        </BbButton>
+    </div>
+
+    @if (Field.Type is SchemaFieldType.Array or SchemaFieldType.Object)
+    {
+        <div class="ml-4 border-l pl-4 space-y-2">
+            <span class="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                <LucideIcon Name="git-branch" Class="h-3 w-3" />Children
+            </span>
+            @if (Field.Children is { Count: > 0 })
+            {
+                @for (int i = 0; i < Field.Children.Count; i++)
+                {
+                    int idx = i;
+                    <SchemaFieldEditor Field="Field.Children[idx]" OnRemove="() => RemoveChild(idx)" />
+                }
+            }
+            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddChild">
+                <LucideIcon Name="plus" Class="h-3.5 w-3.5 mr-1" />Add Child
+            </BbButton>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public SchemaField Field { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnRemove { get; set; }
+
+    private readonly string _reqId = $"req-{Guid.NewGuid():N}";
+
+    private void AddChild()
+    {
+        Field.Children ??= [];
+        Field.Children.Add(new SchemaField { Name = "child_field", Type = SchemaFieldType.String });
+    }
+
+    private void RemoveChild(int index)
+    {
+        if (Field.Children is not null && index < Field.Children.Count)
+            Field.Children.RemoveAt(index);
+    }
+}

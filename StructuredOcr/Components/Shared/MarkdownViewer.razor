@@ -1,0 +1,47 @@
+@using Markdig
+
+<div class="markdown-viewer-toolbar flex items-center gap-1 mb-2">
+    <BbButton Variant="@(_viewMode == ViewMode.SideBySide ? ButtonVariant.Secondary : ButtonVariant.Ghost)"
+              Size="ButtonSize.Small" OnClick="@(() => _viewMode = ViewMode.SideBySide)">
+        <LucideIcon Name="columns-2" Class="h-3.5 w-3.5 mr-1" />Side by side
+    </BbButton>
+    <BbButton Variant="@(_viewMode == ViewMode.Preview ? ButtonVariant.Secondary : ButtonVariant.Ghost)"
+              Size="ButtonSize.Small" OnClick="@(() => _viewMode = ViewMode.Preview)">
+        <LucideIcon Name="eye" Class="h-3.5 w-3.5 mr-1" />Preview
+    </BbButton>
+    <BbButton Variant="@(_viewMode == ViewMode.Source ? ButtonVariant.Secondary : ButtonVariant.Ghost)"
+              Size="ButtonSize.Small" OnClick="@(() => _viewMode = ViewMode.Source)">
+        <LucideIcon Name="code" Class="h-3.5 w-3.5 mr-1" />Source
+    </BbButton>
+</div>
+
+@if (_viewMode == ViewMode.SideBySide)
+{
+    <div class="markdown-viewer-split">
+        <pre class="ocr-output markdown-viewer-pane">@Content</pre>
+        <div class="ocr-output markdown-viewer-pane markdown-rendered">@((MarkupString)RenderedHtml)</div>
+    </div>
+}
+else if (_viewMode == ViewMode.Preview)
+{
+    <div class="ocr-output markdown-rendered">@((MarkupString)RenderedHtml)</div>
+}
+else
+{
+    <pre class="ocr-output">@Content</pre>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Content { get; set; } = "";
+
+    private ViewMode _viewMode = ViewMode.SideBySide;
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    private string RenderedHtml => Markdown.ToHtml(Content ?? "", Pipeline);
+
+    private enum ViewMode { SideBySide, Preview, Source }
+}

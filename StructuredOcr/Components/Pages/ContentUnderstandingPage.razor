@@ -1,0 +1,119 @@
+@page "/content-understanding"
+@using StructuredOcr.Models
+@using StructuredOcr.Services
+@using StructuredOcr.Components.Shared
+@inject OcrServiceRegistry Registry
+@inject ConfigStore ConfigStore
+
+<div class="space-y-4">
+    <div>
+        <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <LucideIcon Name="cloud" Class="h-6 w-6" />
+            Azure Content Understanding
+        </h2>
+        <p class="text-sm text-muted-foreground mt-1">
+            Using <code class="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">@_analyzerId</code> — optimized for RAG scenarios with layout preservation, table detection, figure analysis, and structured markdown output.
+        </p>
+    </div>
+
+    <BbCard>
+        <BbCardHeader>
+            <BbCardTitle Class="flex items-center gap-2">
+                <LucideIcon Name="cpu" Class="h-4 w-4" />
+                Models &amp; Pricing
+            </BbCardTitle>
+            <BbCardDescription>
+                Underlying AI models and cost breakdown for <code class="font-mono text-xs">@_analyzerId</code>.
+            </BbCardDescription>
+        </BbCardHeader>
+        <BbCardContent>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div class="space-y-3">
+                    <h4 class="text-sm font-semibold">Underlying Models</h4>
+                    <div class="space-y-2">
+                        <div class="flex items-start gap-3 rounded-md border p-3">
+                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-950">
+                                <LucideIcon Name="brain" Class="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium">GPT-4.1 Mini</p>
+                                <p class="text-xs text-muted-foreground">Summarization &amp; contextualization — generates the one-paragraph summary and contextualizes extracted content.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 rounded-md border p-3">
+                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-purple-100 dark:bg-purple-950">
+                                <LucideIcon Name="layers" Class="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium">Text Embedding 3 Large</p>
+                                <p class="text-xs text-muted-foreground">Semantic embedding generation — creates vector representations for search and retrieval.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <h4 class="text-sm font-semibold">Pricing Breakdown</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b">
+                                    <th class="py-2 px-3 text-left font-medium text-muted-foreground">Component</th>
+                                    <th class="py-2 px-3 text-right font-medium text-muted-foreground">Cost / 1K pages</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b">
+                                    <td class="py-2 px-3">Document extraction (OCR + layout)</td>
+                                    <td class="py-2 px-3 text-right font-mono">$5.00</td>
+                                </tr>
+                                <tr class="border-b">
+                                    <td class="py-2 px-3">Contextualization (summarization)</td>
+                                    <td class="py-2 px-3 text-right font-mono">$1.00</td>
+                                </tr>
+                                <tr class="border-b bg-muted/30">
+                                    <td class="py-2 px-3 font-semibold">Total</td>
+                                    <td class="py-2 px-3 text-right font-mono font-semibold">$6.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 text-muted-foreground" colspan="2">
+                                        = <span class="font-mono">$0.006</span> per page
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-xs text-muted-foreground italic">
+                        @PricingCatalog.Disclaimer
+                    </p>
+                </div>
+            </div>
+        </BbCardContent>
+    </BbCard>
+
+    @if (_service != null)
+    {
+        <AnalyzePanel Service="_service" />
+    }
+    else
+    {
+        <BbAlert Variant="AlertVariant.Warning">
+            <BbAlertTitle>Service Unavailable</BbAlertTitle>
+            <BbAlertDescription>Content Understanding service is not registered.</BbAlertDescription>
+        </BbAlert>
+    }
+</div>
+
+@code {
+    private IOcrService? _service;
+    private string _analyzerId = "prebuilt-documentSearch";
+
+    protected override void OnInitialized()
+    {
+        _service = Registry.GetByName("Content Understanding");
+        var config = ConfigStore.Get("ContentUnderstanding");
+        if (config != null)
+        {
+            _analyzerId = config.ExtraSettings.GetValueOrDefault("AnalyzerId", "prebuilt-documentSearch");
+        }
+    }
+}

@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<UserSecretsId>1448d0ff-f1cf-4f9b-9e49-757e303509db</UserSecretsId>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Azure.AI.ContentUnderstanding" Version="1.0.0-beta.1" />
+		<PackageReference Include="BlazorBlueprint.Components" Version="3.4.0" />
+		<PackageReference Include="Markdig" Version="*" />
+	</ItemGroup>
+
+</Project>

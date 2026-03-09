@@ -1,0 +1,20 @@
+@using StructuredOcr.Services
+@inject ConfigStore ConfigStore
+@inject IJSRuntime JS
+
+@code {
+    private static bool _loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_loaded)
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", ConfigStore.StorageKey);
+            if (!string.IsNullOrEmpty(json))
+            {
+                ConfigStore.LoadFromJson(json);
+            }
+            _loaded = true;
+        }
+    }
+}

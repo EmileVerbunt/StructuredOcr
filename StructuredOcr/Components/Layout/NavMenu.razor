@@ -1,0 +1,90 @@
+<BbSidebarHeader>
+    <BbSidebarHeaderContent>
+        <div class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <LucideIcon Name="scan-text" Class="h-4 w-4" />
+        </div>
+        <BbSidebarHeaderInfo>
+            <span class="truncate font-semibold">OCR Benchmark</span>
+            <span class="truncate text-xs text-muted-foreground">Document Analysis</span>
+        </BbSidebarHeaderInfo>
+    </BbSidebarHeaderContent>
+</BbSidebarHeader>
+
+<BbSidebarContent>
+    <BbSidebarGroup>
+        <BbSidebarGroupLabel>Overview</BbSidebarGroupLabel>
+        <BbSidebarGroupContent>
+            <BbSidebarMenu>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton Href="/" Match="NavLinkMatch.All" Tooltip="Home">
+                        <LucideIcon Name="house" Class="h-4 w-4" />
+                        <span>Home</span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+            </BbSidebarMenu>
+        </BbSidebarGroupContent>
+    </BbSidebarGroup>
+
+    <BbSidebarGroup>
+        <BbSidebarGroupLabel>Analyze</BbSidebarGroupLabel>
+        <BbSidebarGroupContent>
+            <BbSidebarMenu>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton Href="/mistral" Tooltip="Mistral">
+                        <LucideIcon Name="sparkles" Class="h-4 w-4" />
+                        <span>Mistral</span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton Href="/content-understanding" Tooltip="Content Understanding">
+                        <LucideIcon Name="cloud" Class="h-4 w-4" />
+                        <span>Content Understanding</span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton Href="/llm-vision" Tooltip="LLM Vision">
+                        <LucideIcon Name="eye" Class="h-4 w-4" />
+                        <span>LLM Vision</span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+            </BbSidebarMenu>
+        </BbSidebarGroupContent>
+    </BbSidebarGroup>
+
+    <BbSidebarGroup>
+        <BbSidebarGroupLabel>Configure</BbSidebarGroupLabel>
+        <BbSidebarGroupContent>
+            <BbSidebarMenu>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton Href="/schemas" Tooltip="Schemas">
+                        <LucideIcon Name="braces" Class="h-4 w-4" />
+                        <span>Schemas</span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton Href="/settings" Tooltip="Settings">
+                        <LucideIcon Name="settings" Class="h-4 w-4" />
+                        <span>Settings</span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton Href="/cost-calculator" Tooltip="Cost Calculator">
+                        <LucideIcon Name="calculator" Class="h-4 w-4" />
+                        <span>Cost Calculator</span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+            </BbSidebarMenu>
+        </BbSidebarGroupContent>
+    </BbSidebarGroup>
+</BbSidebarContent>
+
+<BbSidebarFooter>
+    <BbSidebarMenu>
+        <BbSidebarMenuItem>
+            <BbSidebarMenuButton Href="https://github.com/emileSWAAA/StructuredOcr" target="_blank" Tooltip="GitHub">
+                <LucideIcon Name="github" Class="h-4 w-4" />
+                <span>GitHub</span>
+            </BbSidebarMenuButton>
+        </BbSidebarMenuItem>
+    </BbSidebarMenu>
+</BbSidebarFooter>

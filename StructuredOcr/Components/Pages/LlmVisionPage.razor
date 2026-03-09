@@ -1,0 +1,88 @@
+@page "/llm-vision"
+@using StructuredOcr.Models
+@using StructuredOcr.Services
+@using StructuredOcr.Components.Shared
+@inject OcrServiceRegistry Registry
+@inject ConfigStore ConfigStore
+
+<div class="space-y-4">
+    <div>
+        <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <LucideIcon Name="eye" Class="h-6 w-6" />
+            LLM Vision
+        </h2>
+    </div>
+
+    @if (_service != null)
+    {
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle Class="flex items-center gap-2">
+                    <LucideIcon Name="cpu" Class="h-4 w-4" />
+                    Model Selection
+                </BbCardTitle>
+            </BbCardHeader>
+            <BbCardContent>
+                @if (_deployments.Count > 0)
+                {
+                    <div class="max-w-sm">
+                        <BbLabel Class="mb-2">Deployment</BbLabel>
+                        <BbSelect TValue="string" Value="@SelectedDeployment" ValueChanged="@(v => SelectedDeployment = v)"
+                                  Options="@_deploymentOptions" Placeholder="Select deployment..." />
+                    </div>
+                }
+                else
+                {
+                    <BbAlert Variant="AlertVariant.Warning">
+                        <BbAlertTitle>No Deployments</BbAlertTitle>
+                        <BbAlertDescription>
+                            No deployments configured. Add deployment names in <a href="/settings" class="underline">Settings</a>.
+                        </BbAlertDescription>
+                    </BbAlert>
+                }
+            </BbCardContent>
+        </BbCard>
+
+        <AnalyzePanel Service="_service" />
+    }
+    else
+    {
+        <BbAlert Variant="AlertVariant.Warning">
+            <BbAlertTitle>Service Unavailable</BbAlertTitle>
+            <BbAlertDescription>LLM Vision service is not registered.</BbAlertDescription>
+        </BbAlert>
+    }
+</div>
+
+@code {
+    private LlmVisionOcrService? _service;
+    private List<string> _deployments = [];
+    private List<SelectOption<string>> _deploymentOptions = [];
+
+    private string _selectedDeployment = "";
+    private string SelectedDeployment
+    {
+        get => _selectedDeployment;
+        set
+        {
+            _selectedDeployment = value;
+            if (_service != null)
+                _service.SelectedDeployment = value;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        var svc = Registry.GetByName("LLM Vision");
+        if (svc is LlmVisionOcrService llm)
+        {
+            _service = llm;
+            _deployments = llm.GetAvailableDeployments();
+            _deploymentOptions = _deployments.Select(d => new SelectOption<string>(d, d)).ToList();
+            if (_deployments.Count > 0)
+            {
+                SelectedDeployment = _deployments[0];
+            }
+        }
+    }
+}
