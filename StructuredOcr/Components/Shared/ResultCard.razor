@@ -1,250 +1,299 @@
 @using StructuredOcr.Models
 @using StructuredOcr.Services
 
-<BbCard Class="mb-4">
-    <BbCardHeader Class="@(Result.IsSuccess ? "border-b" : "border-b bg-destructive/10")">
-        <div class="flex items-center justify-between">
-            <BbCardTitle>@Result.Strategy</BbCardTitle>
-            <div class="flex gap-2 flex-wrap">
-                <BbBadge Variant="BadgeVariant.Default">
-                    <LucideIcon Name="timer" Class="h-3 w-3 mr-1" />@Result.ElapsedMs.ToString("N0") ms
-                </BbBadge>
-                @if (Result.TokensUsed.HasValue)
-                {
-                    <BbBadge Variant="BadgeVariant.Secondary">
-                        <LucideIcon Name="coins" Class="h-3 w-3 mr-1" />@Result.TokensUsed @TokenUnitLabel @(Result.ModelsUsed.Count > 0 ? "(est.)" : "")
-                    </BbBadge>
-                }
-                @if (Result.InputTokens.HasValue && Result.OutputTokens.HasValue)
-                {
-                    <BbBadge Variant="BadgeVariant.Outline">
-                        <LucideIcon Name="arrow-down" Class="h-3 w-3 mr-1" />@Result.InputTokens.Value.ToString("N0") in / @Result.OutputTokens.Value.ToString("N0") out
-                    </BbBadge>
-                }
-                @if (Result.EstimatedCostUsd.HasValue)
-                {
-                    <BbBadge Variant="@GetCostBadgeVariant(Result.EstimatedCostUsd.Value)">
-                        <LucideIcon Name="dollar-sign" Class="h-3 w-3 mr-1" />@FormatCost(Result.EstimatedCostUsd.Value)
-                    </BbBadge>
-                }
-                @if (Result.TableCount is > 0)
-                {
-                    <BbBadge Variant="BadgeVariant.Outline">
-                        <LucideIcon Name="table" Class="h-3 w-3 mr-1" />@Result.TableCount tables
-                    </BbBadge>
-                }
-                @if (Result.FigureCount is > 0)
-                {
-                    <BbBadge Variant="BadgeVariant.Outline">
-                        <LucideIcon Name="image" Class="h-3 w-3 mr-1" />@Result.FigureCount figures
-                    </BbBadge>
-                }
-            </div>
-        </div>
-    </BbCardHeader>
-    <BbCardContent Class="pt-4">
-        @if (!Result.IsSuccess)
-        {
-            <BbAlert Variant="AlertVariant.Danger">
-                <BbAlertDescription>@Result.Error</BbAlertDescription>
-            </BbAlert>
-        }
-        else
-        {
-            @* Summary *@
-            @if (!string.IsNullOrEmpty(Result.Summary))
-            {
-                <div class="rounded-md border bg-muted/30 p-3 mb-3">
-                    <h4 class="text-sm font-semibold flex items-center gap-1.5 mb-1">
-                        <LucideIcon Name="file-text" Class="h-3.5 w-3.5" />Summary
-                    </h4>
-                    <p class="text-sm text-muted-foreground">@Result.Summary</p>
+<BbCollapsible DefaultOpen="false" Class="mb-4">
+    <BbCard>
+        <BbCollapsibleTrigger AsChild="false"
+            Class="w-full text-left cursor-pointer group">
+            <BbCardHeader Class="@HeaderClass">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <LucideIcon Name="chevron-right"
+                            Class="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-90" />
+                        <BbCardTitle>@Result.Strategy</BbCardTitle>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <BbBadge Variant="BadgeVariant.Default">
+                            <LucideIcon Name="timer" Class="h-3 w-3 mr-1" />@Result.ElapsedMs.ToString("N0") ms
+                        </BbBadge>
+                        @if (Result.EstimatedCostUsd.HasValue)
+                        {
+                            <BbBadge Variant="@GetCostBadgeVariant(Result.EstimatedCostUsd.Value)">
+                                <LucideIcon Name="dollar-sign" Class="h-3 w-3 mr-1" />@FormatCost(Result.EstimatedCostUsd.Value)
+                            </BbBadge>
+                        }
+                        @if (Result.PageCount.HasValue)
+                        {
+                            <BbBadge Variant="BadgeVariant.Outline">
+                                <LucideIcon Name="file" Class="h-3 w-3 mr-1" />@Result.PageCount pages
+                            </BbBadge>
+                        }
+                        @if (!Result.IsSuccess)
+                        {
+                            <BbBadge Variant="BadgeVariant.Destructive">Error</BbBadge>
+                        }
+                    </div>
                 </div>
-            }
-
-            @* Models & Token Estimates *@
-            @if (Result.ModelsUsed.Count > 0)
-            {
-                <BbCollapsible Class="mb-3">
-                    <BbCollapsibleTrigger>
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
-                            <LucideIcon Name="cpu" Class="h-3.5 w-3.5 mr-1" />Models &amp; Token Estimates
-                            <BbBadge Variant="BadgeVariant.Secondary" Class="ml-2">@Result.ModelsUsed.Count models</BbBadge>
-                        </BbButton>
-                    </BbCollapsibleTrigger>
-                    <BbCollapsibleContent>
-                        <div class="mt-2 overflow-x-auto">
-                            <table class="w-full text-sm">
-                                <thead>
-                                    <tr class="border-b">
-                                        <th class="py-2 px-3 text-left font-medium text-muted-foreground">Model</th>
-                                        <th class="py-2 px-3 text-left font-medium text-muted-foreground">Role</th>
-                                        <th class="py-2 px-3 text-right font-medium text-muted-foreground">Est. Input Tokens</th>
-                                        <th class="py-2 px-3 text-right font-medium text-muted-foreground">Est. Output Tokens</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var model in Result.ModelsUsed)
-                                    {
-                                        <tr class="border-b">
-                                            <td class="py-2 px-3 font-medium">@model.DisplayName</td>
-                                            <td class="py-2 px-3 text-muted-foreground">@model.Role</td>
-                                            <td class="py-2 px-3 text-right font-mono">@(model.EstimatedInputTokens?.ToString("N0") ?? "—")</td>
-                                            <td class="py-2 px-3 text-right font-mono">@(model.EstimatedOutputTokens?.ToString("N0") ?? "—")</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                            <p class="text-xs text-muted-foreground mt-2 italic">
-                                Token counts are estimates (~4 chars/token). Actual billing is per page, not per token.
-                            </p>
-                        </div>
-                    </BbCollapsibleContent>
-                </BbCollapsible>
-            }
-
-            @* Classification *@
-            @if (!string.IsNullOrEmpty(Result.DocumentType))
-            {
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="text-sm font-semibold">Document Type:</span>
-                    <BbBadge Variant="BadgeVariant.Default">@Result.DocumentType</BbBadge>
-                    @{
-                        string? confidence = JsonHelper.TryExtractField(Result.StructuredJson, "confidence");
-                        string? reasoning = JsonHelper.TryExtractField(Result.StructuredJson, "reasoning");
-                    }
-                    @if (confidence != null)
-                    {
-                        <BbBadge Variant="@GetConfidenceBadgeVariant(confidence)">@confidence confidence</BbBadge>
-                    }
-                </div>
-                @if (reasoning != null)
+            </BbCardHeader>
+        </BbCollapsibleTrigger>
+        <BbCollapsibleContent>
+            <BbCardContent Class="pt-4">
+                @if (!Result.IsSuccess)
                 {
-                    <p class="text-sm text-muted-foreground mb-3 italic">@reasoning</p>
-                }
-            }
-
-            @* Structured data *@
-            @if (string.IsNullOrWhiteSpace(Result.StructuredJson) && Result.Strategy != "ExtractMarkdown")
-            {
-                <BbAlert Variant="AlertVariant.Info" Class="mb-3">
-                    <BbAlertDescription>No structured annotations returned by the API.</BbAlertDescription>
-                </BbAlert>
-            }
-
-            @if (!string.IsNullOrWhiteSpace(Result.StructuredJson))
-            {
-                <h4 class="text-sm font-semibold mb-2">Extracted Data</h4>
-                var arrayItems = JsonHelper.ParseStructuredArray(Result.StructuredJson);
-
-                @if (arrayItems != null && Schema != null)
-                {
-                    @for (int idx = 0; idx < arrayItems.Count; idx++)
-                    {
-                        var itemFields = arrayItems[idx];
-                        string dtVal = JsonHelper.GetFieldValue(itemFields, "document_type");
-                        <BbCard Class="mb-2">
-                            <BbCardHeader Class="py-2">
-                                <div class="flex items-center gap-2">
-                                    <BbBadge Variant="BadgeVariant.Secondary">Image @(idx + 1)</BbBadge>
-                                    @if (dtVal != "—")
-                                    {
-                                        <BbBadge>@dtVal</BbBadge>
-                                    }
-                                </div>
-                            </BbCardHeader>
-                            <BbCardContent Class="p-0">
-                                <StructuredFieldsView Schema="Schema" Fields="itemFields" />
-                            </BbCardContent>
-                        </BbCard>
-                    }
-                }
-                else if (Schema != null && JsonHelper.ParseStructuredFields(Result.StructuredJson).Count > 0)
-                {
-                    var fields = JsonHelper.ParseStructuredFields(Result.StructuredJson);
-                    <StructuredFieldsView Schema="Schema" Fields="fields" />
+                    <BbAlert Variant="AlertVariant.Danger">
+                        <BbAlertDescription>@Result.Error</BbAlertDescription>
+                    </BbAlert>
                 }
                 else
                 {
-                    <pre class="ocr-output">@JsonHelper.FormatJson(Result.StructuredJson)</pre>
-                }
+                    @* Cost & Token Breakdown *@
+                    <div class="rounded-md border mb-4">
+                        <div class="px-3 py-2 bg-muted/30 border-b">
+                            <h4 class="text-sm font-semibold flex items-center gap-1.5">
+                                <LucideIcon Name="receipt" Class="h-3.5 w-3.5" />
+                                Cost &amp; Token Breakdown
+                            </h4>
+                        </div>
+                        <div class="p-3">
+                            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-3">
+                                @if (Result.PageCount.HasValue)
+                                {
+                                    <div class="space-y-0.5">
+                                        <p class="text-xs text-muted-foreground">Pages Processed</p>
+                                        <p class="text-lg font-semibold font-mono">@Result.PageCount</p>
+                                    </div>
+                                }
+                                @if (Result.InputTokens.HasValue || Result.TokensUsed.HasValue)
+                                {
+                                    <div class="space-y-0.5">
+                                        <p class="text-xs text-muted-foreground">Input Tokens</p>
+                                        <p class="text-lg font-semibold font-mono">@((Result.InputTokens ?? Result.TokensUsed)?.ToString("N0") ?? "—")</p>
+                                    </div>
+                                }
+                                @if (Result.OutputTokens.HasValue)
+                                {
+                                    <div class="space-y-0.5">
+                                        <p class="text-xs text-muted-foreground">Output Tokens</p>
+                                        <p class="text-lg font-semibold font-mono">@Result.OutputTokens.Value.ToString("N0")</p>
+                                    </div>
+                                }
+                                @if (Result.EstimatedCostUsd.HasValue)
+                                {
+                                    <div class="space-y-0.5">
+                                        <p class="text-xs text-muted-foreground">Estimated Cost</p>
+                                        <p class="text-lg font-semibold font-mono @GetCostColor(Result.EstimatedCostUsd.Value)">@FormatCost(Result.EstimatedCostUsd.Value)</p>
+                                    </div>
+                                }
+                            </div>
 
-                <BbCollapsible Class="mt-3">
-                    <BbCollapsibleTrigger>
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
-                            <LucideIcon Name="code" Class="h-3.5 w-3.5 mr-1" />Raw JSON
-                        </BbButton>
-                    </BbCollapsibleTrigger>
-                    <BbCollapsibleContent>
-                        <pre class="ocr-output mt-2" style="max-height:200px;">@JsonHelper.FormatJson(Result.StructuredJson)</pre>
-                    </BbCollapsibleContent>
-                </BbCollapsible>
-            }
+                            @* Per-model breakdown table *@
+                            @if (Result.ModelsUsed.Count > 0)
+                            {
+                                <table class="w-full text-sm mb-2">
+                                    <thead>
+                                        <tr class="border-b">
+                                            <th class="py-1.5 px-2 text-left font-medium text-muted-foreground text-xs">Model</th>
+                                            <th class="py-1.5 px-2 text-left font-medium text-muted-foreground text-xs">Role</th>
+                                            <th class="py-1.5 px-2 text-right font-medium text-muted-foreground text-xs">Input Tokens</th>
+                                            <th class="py-1.5 px-2 text-right font-medium text-muted-foreground text-xs">Output Tokens</th>
+                                            <th class="py-1.5 px-2 text-right font-medium text-muted-foreground text-xs">Est. Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var model in Result.ModelsUsed)
+                                        {
+                                            decimal? modelCost = ComputeModelCost(model);
+                                            <tr class="border-b last:border-0">
+                                                <td class="py-1.5 px-2 font-medium text-xs">@model.DisplayName</td>
+                                                <td class="py-1.5 px-2 text-muted-foreground text-xs">@model.Role</td>
+                                                <td class="py-1.5 px-2 text-right font-mono text-xs">@(model.EstimatedInputTokens?.ToString("N0") ?? "—")</td>
+                                                <td class="py-1.5 px-2 text-right font-mono text-xs">@(model.EstimatedOutputTokens?.ToString("N0") ?? "—")</td>
+                                                <td class="py-1.5 px-2 text-right font-mono text-xs">@(modelCost.HasValue ? FormatCost(modelCost.Value) : "—")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
 
-            @* Per-page accordion *@
-            @if (Result.Pages.Count > 0)
-            {
-                <h4 class="text-sm font-semibold mt-4 mb-2 flex items-center gap-2">
-                    Pages <BbBadge Variant="BadgeVariant.Secondary">@Result.Pages.Count</BbBadge>
-                </h4>
-                <BbAccordion Type="AccordionType.Single" Collapsible>
-                    @for (int pi = 0; pi < Result.Pages.Count; pi++)
-                    {
-                        var pg = Result.Pages[pi];
-                        bool hasContent = !string.IsNullOrWhiteSpace(pg.Markdown) || !string.IsNullOrWhiteSpace(pg.StructuredJson);
-                        string preview = !string.IsNullOrWhiteSpace(pg.Markdown)
-                            ? (pg.Markdown.Length > 80 ? pg.Markdown[..80] + "…" : pg.Markdown)
-                            : "(empty)";
-                        <BbAccordionItem Value="@($"page-{pi}")">
-                            <BbAccordionTrigger>
-                                <span class="flex items-center gap-2 text-sm">
-                                    <BbBadge Variant="BadgeVariant.Secondary">@(pi + 1)</BbBadge>
-                                    <span class="truncate text-muted-foreground" style="max-width:60%;">@preview</span>
-                                    @if (!string.IsNullOrWhiteSpace(pg.Markdown))
+                            @* Pricing basis *@
+                            @if (Result.CostModelId != null && PricingCatalog.Models.TryGetValue(Result.CostModelId, out var pricing))
+                            {
+                                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <LucideIcon Name="info" Class="h-3 w-3 shrink-0" />
+                                    @if (pricing.Unit == PricingUnit.Per1KPages)
                                     {
-                                        <BbBadge Variant="BadgeVariant.Outline" Class="ml-auto">@pg.Markdown.Length chars</BbBadge>
+                                        <span>Billed at <span class="font-mono font-medium">$@pricing.InputCostPer1M.ToString("F2")</span> per 1K pages. @pricing.Notes</span>
                                     }
-                                </span>
-                            </BbAccordionTrigger>
-                            <BbAccordionContent>
-                                @if (!string.IsNullOrWhiteSpace(pg.Markdown))
-                                {
-                                    <MarkdownViewer Content="@pg.Markdown" />
-                                }
-                                @if (!string.IsNullOrWhiteSpace(pg.StructuredJson))
-                                {
-                                    <h4 class="text-sm font-semibold mt-3 mb-1">Structured</h4>
-                                    <pre class="ocr-output" style="max-height:200px;">@JsonHelper.FormatJson(pg.StructuredJson)</pre>
-                                }
-                                @if (!hasContent)
-                                {
-                                    <span class="text-sm text-muted-foreground">No content on this page.</span>
-                                }
-                            </BbAccordionContent>
-                        </BbAccordionItem>
-                    }
-                </BbAccordion>
-            }
-            else if (!string.IsNullOrWhiteSpace(Result.RawMarkdown))
-            {
-                <h4 class="text-sm font-semibold mt-3 mb-1">Markdown Output</h4>
-                <MarkdownViewer Content="@Result.RawMarkdown" />
-            }
+                                    else
+                                    {
+                                        <span>Billed at <span class="font-mono font-medium">$@pricing.InputCostPer1M.ToString("F2")</span> in / <span class="font-mono font-medium">$@pricing.OutputCostPer1M.ToString("F2")</span> out per 1M tokens.</span>
+                                    }
+                                </div>
+                            }
+                            else if (Result.ModelsUsed.Count > 0)
+                            {
+                                <p class="text-xs text-muted-foreground italic">
+                                    Token counts are estimates (~4 chars/token). Actual billing is per page, not per token.
+                                </p>
+                            }
+                        </div>
+                    </div>
 
-            @* Raw service response *@
-            <BbCollapsible Class="mt-3">
-                <BbCollapsibleTrigger>
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
-                        <LucideIcon Name="file-json" Class="h-3.5 w-3.5 mr-1" />Raw Service Response
-                    </BbButton>
-                </BbCollapsibleTrigger>
-                <BbCollapsibleContent>
-                    <pre class="ocr-output mt-2" style="max-height:200px;">@JsonHelper.FormatJson(Result.RawServiceResponse ?? "")</pre>
-                </BbCollapsibleContent>
-            </BbCollapsible>
-        }
-    </BbCardContent>
-</BbCard>
+                    @* Summary *@
+                    @if (!string.IsNullOrEmpty(Result.Summary))
+                    {
+                        <div class="rounded-md border bg-muted/30 p-3 mb-3">
+                            <h4 class="text-sm font-semibold flex items-center gap-1.5 mb-1">
+                                <LucideIcon Name="file-text" Class="h-3.5 w-3.5" />Summary
+                            </h4>
+                            <p class="text-sm text-muted-foreground">@Result.Summary</p>
+                        </div>
+                    }
+
+                    @* Classification *@
+                    @if (!string.IsNullOrEmpty(Result.DocumentType))
+                    {
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-sm font-semibold">Document Type:</span>
+                            <BbBadge Variant="BadgeVariant.Default">@Result.DocumentType</BbBadge>
+                            @{
+                                string? confidence = JsonHelper.TryExtractField(Result.StructuredJson, "confidence");
+                                string? reasoning = JsonHelper.TryExtractField(Result.StructuredJson, "reasoning");
+                            }
+                            @if (confidence != null)
+                            {
+                                <BbBadge Variant="@GetConfidenceBadgeVariant(confidence)">@confidence confidence</BbBadge>
+                            }
+                        </div>
+                        @if (reasoning != null)
+                        {
+                            <p class="text-sm text-muted-foreground mb-3 italic">@reasoning</p>
+                        }
+                    }
+
+                    @* Structured data *@
+                    @if (string.IsNullOrWhiteSpace(Result.StructuredJson) && Result.Strategy != "ExtractMarkdown")
+                    {
+                        <BbAlert Variant="AlertVariant.Info" Class="mb-3">
+                            <BbAlertDescription>No structured annotations returned by the API.</BbAlertDescription>
+                        </BbAlert>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Result.StructuredJson))
+                    {
+                        <h4 class="text-sm font-semibold mb-2">Extracted Data</h4>
+                        var arrayItems = JsonHelper.ParseStructuredArray(Result.StructuredJson);
+
+                        @if (arrayItems != null && Schema != null)
+                        {
+                            @for (int idx = 0; idx < arrayItems.Count; idx++)
+                            {
+                                var itemFields = arrayItems[idx];
+                                string dtVal = JsonHelper.GetFieldValue(itemFields, "document_type");
+                                <BbCard Class="mb-2">
+                                    <BbCardHeader Class="py-2">
+                                        <div class="flex items-center gap-2">
+                                            <BbBadge Variant="BadgeVariant.Secondary">Image @(idx + 1)</BbBadge>
+                                            @if (dtVal != "—")
+                                            {
+                                                <BbBadge>@dtVal</BbBadge>
+                                            }
+                                        </div>
+                                    </BbCardHeader>
+                                    <BbCardContent Class="p-0">
+                                        <StructuredFieldsView Schema="Schema" Fields="itemFields" />
+                                    </BbCardContent>
+                                </BbCard>
+                            }
+                        }
+                        else if (Schema != null && JsonHelper.ParseStructuredFields(Result.StructuredJson).Count > 0)
+                        {
+                            var fields = JsonHelper.ParseStructuredFields(Result.StructuredJson);
+                            <StructuredFieldsView Schema="Schema" Fields="fields" />
+                        }
+                        else
+                        {
+                            <pre class="ocr-output">@JsonHelper.FormatJson(Result.StructuredJson)</pre>
+                        }
+
+                        <BbCollapsible Class="mt-3">
+                            <BbCollapsibleTrigger>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
+                                    <LucideIcon Name="code" Class="h-3.5 w-3.5 mr-1" />Raw JSON
+                                </BbButton>
+                            </BbCollapsibleTrigger>
+                            <BbCollapsibleContent>
+                                <pre class="ocr-output mt-2" style="max-height:200px;">@JsonHelper.FormatJson(Result.StructuredJson)</pre>
+                            </BbCollapsibleContent>
+                        </BbCollapsible>
+                    }
+
+                    @* Per-page accordion *@
+                    @if (Result.Pages.Count > 0)
+                    {
+                        <h4 class="text-sm font-semibold mt-4 mb-2 flex items-center gap-2">
+                            Pages <BbBadge Variant="BadgeVariant.Secondary">@Result.Pages.Count</BbBadge>
+                        </h4>
+                        <BbAccordion Type="AccordionType.Single" Collapsible>
+                            @for (int pi = 0; pi < Result.Pages.Count; pi++)
+                            {
+                                var pg = Result.Pages[pi];
+                                bool hasContent = !string.IsNullOrWhiteSpace(pg.Markdown) || !string.IsNullOrWhiteSpace(pg.StructuredJson);
+                                string preview = !string.IsNullOrWhiteSpace(pg.Markdown)
+                                    ? (pg.Markdown.Length > 80 ? pg.Markdown[..80] + "..." : pg.Markdown)
+                                    : "(empty)";
+                                <BbAccordionItem Value="@($"page-{pi}")">
+                                    <BbAccordionTrigger>
+                                        <span class="flex items-center gap-2 text-sm">
+                                            <BbBadge Variant="BadgeVariant.Secondary">@(pi + 1)</BbBadge>
+                                            <span class="truncate text-muted-foreground" style="max-width:60%;">@preview</span>
+                                            @if (!string.IsNullOrWhiteSpace(pg.Markdown))
+                                            {
+                                                <BbBadge Variant="BadgeVariant.Outline" Class="ml-auto">@pg.Markdown.Length chars</BbBadge>
+                                            }
+                                        </span>
+                                    </BbAccordionTrigger>
+                                    <BbAccordionContent>
+                                        @if (!string.IsNullOrWhiteSpace(pg.Markdown))
+                                        {
+                                            <MarkdownViewer Content="@pg.Markdown" />
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(pg.StructuredJson))
+                                        {
+                                            <h4 class="text-sm font-semibold mt-3 mb-1">Structured</h4>
+                                            <pre class="ocr-output" style="max-height:200px;">@JsonHelper.FormatJson(pg.StructuredJson)</pre>
+                                        }
+                                        @if (!hasContent)
+                                        {
+                                            <span class="text-sm text-muted-foreground">No content on this page.</span>
+                                        }
+                                    </BbAccordionContent>
+                                </BbAccordionItem>
+                            }
+                        </BbAccordion>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(Result.RawMarkdown))
+                    {
+                        <h4 class="text-sm font-semibold mt-3 mb-1">Markdown Output</h4>
+                        <MarkdownViewer Content="@Result.RawMarkdown" />
+                    }
+
+                    @* Raw service response *@
+                    <BbCollapsible Class="mt-3">
+                        <BbCollapsibleTrigger>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small">
+                                <LucideIcon Name="file-json" Class="h-3.5 w-3.5 mr-1" />Raw Service Response
+                            </BbButton>
+                        </BbCollapsibleTrigger>
+                        <BbCollapsibleContent>
+                            <pre class="ocr-output mt-2" style="max-height:200px;">@JsonHelper.FormatJson(Result.RawServiceResponse ?? "")</pre>
+                        </BbCollapsibleContent>
+                    </BbCollapsible>
+                }
+            </BbCardContent>
+        </BbCollapsibleContent>
+    </BbCard>
+</BbCollapsible>
 
 @code {
     [Parameter, EditorRequired]
@@ -256,8 +305,38 @@
     [Parameter]
     public string TokenUnitLabel { get; set; } = "tokens";
 
-    private static string FormatCost(decimal cost) =>
-        cost < 0.01m ? $"${cost:F4}" : $"${cost:F2}";
+    private string HeaderClass => Result.IsSuccess ? "border-b" : "border-b bg-destructive/10";
+
+    private static decimal? ComputeModelCost(ModelUsageInfo model)
+    {
+        if (!PricingCatalog.Models.TryGetValue(model.ModelId, out var pricing))
+            return null;
+        if (pricing.Unit != PricingUnit.Per1MTokens)
+            return null;
+
+        decimal cost = 0;
+        if (model.EstimatedInputTokens.HasValue)
+            cost += model.EstimatedInputTokens.Value / 1_000_000m * pricing.InputCostPer1M;
+        if (model.EstimatedOutputTokens.HasValue)
+            cost += model.EstimatedOutputTokens.Value / 1_000_000m * pricing.OutputCostPer1M;
+
+        return cost > 0 ? cost : null;
+    }
+
+    private static string FormatCost(decimal cost) => cost switch
+    {
+        0 => "$0.00",
+        < 0.001m => $"${cost:F5}",
+        < 0.01m => $"${cost:F4}",
+        _ => $"${cost:F2}"
+    };
+
+    private static string GetCostColor(decimal cost) => cost switch
+    {
+        < 0.01m => "text-green-600 dark:text-green-400",
+        < 0.10m => "text-yellow-600 dark:text-yellow-400",
+        _ => "text-red-600 dark:text-red-400"
+    };
 
     private static BadgeVariant GetCostBadgeVariant(decimal cost) => cost switch
     {

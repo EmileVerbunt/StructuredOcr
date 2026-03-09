@@ -42,14 +42,18 @@
 
             <div class="space-y-2">
                 <BbLabel Class="font-semibold">Strategies</BbLabel>
-                <div class="flex flex-wrap gap-4">
+                <div class="space-y-2">
                     @foreach (var strategy in Service.Strategies)
                     {
                         var s = strategy;
                         var isChecked = _selectedStrategies.Contains(s);
-                        <div class="flex items-center gap-2">
-                            <BbCheckbox Checked="@isChecked" CheckedChanged="@(v => ToggleStrategy(s, v))" Id="@($"strat-{s}")" />
-                            <BbLabel For="@($"strat-{s}")">@s</BbLabel>
+                        string desc = GetStrategyDescription(Service.ServiceName, s);
+                        <div class="flex items-start gap-2">
+                            <BbCheckbox Checked="@isChecked" CheckedChanged="@(v => ToggleStrategy(s, v))" Id="@($"strat-{s}")" Class="mt-0.5" />
+                            <div>
+                                <BbLabel For="@($"strat-{s}")" Class="font-medium">@s</BbLabel>
+                                <p class="text-xs text-muted-foreground">@desc</p>
+                            </div>
                         </div>
                     }
                 </div>
@@ -187,5 +191,25 @@
         < 1024 => $"{bytes} B",
         < 1024 * 1024 => $"{bytes / 1024.0:N1} KB",
         _ => $"{bytes / (1024.0 * 1024.0):N1} MB"
+    };
+
+    private static string GetStrategyDescription(string serviceName, string strategy) => (serviceName, strategy) switch
+    {
+        // Content Understanding
+        ("Content Understanding", "ExtractMarkdown") => "Extract structured markdown with layout preservation, tables, and figures via prebuilt-documentSearch.",
+        ("Content Understanding", "Classify") => "Classify the document type using keyword analysis of extracted content.",
+        ("Content Understanding", "ExtractStructured") => "Extract typed fields from the document using a custom or prebuilt analyzer schema.",
+
+        // Mistral
+        ("Mistral", "ExtractMarkdown") => "OCR the document into clean markdown using Mistral Document AI.",
+        ("Mistral", "Classify") => "Classify the document type using document_annotation_format with structured output.",
+        ("Mistral", "ExtractStructured") => "Extract structured fields using a JSON schema annotation on the document.",
+
+        // LLM Vision
+        ("LLM Vision", "ExtractMarkdown") => "Send the document image to an Azure OpenAI vision model to extract markdown.",
+        ("LLM Vision", "Classify") => "Ask the vision model to classify the document into a known category.",
+        ("LLM Vision", "ExtractStructured") => "Prompt the vision model to extract structured JSON fields from the document.",
+
+        _ => "Run this analysis strategy on the uploaded document."
     };
 }
