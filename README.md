@@ -78,7 +78,7 @@ The app includes a built-in cost estimator based on published pay-as-you-go pric
 ### Clone & Run
 
 ```bash
-git clone https://github.com/emileSWAAA/StructuredOcr.git
+git clone https://github.com/EmileVerbunt/StructuredOcr.git
 cd StructuredOcr
 dotnet run --project StructuredOcr
 ```
@@ -181,7 +181,7 @@ This is a **proof-of-concept / benchmark tool** for evaluating OCR and document 
 
 Contributions are welcome! If you find a bug, have a feature idea, or want to add support for another service:
 
-1. Open an [issue](https://github.com/emileSWAAA/StructuredOcr/issues) to discuss the change
+1. Open an [issue](https://github.com/EmileVerbunt/StructuredOcr/issues) to discuss the change
 2. Fork the repo and create a feature branch
 3. Submit a pull request
 
