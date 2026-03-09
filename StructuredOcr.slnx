@@ -1,3 +1,8 @@
 <Solution>
+  <Folder Name="/docs/">
+    <File Path="docs/insurance_claim.png" />
+    <File Path="docs/Microsoft Azure PAYG - Sample Invoice.pdf" />
+    <File Path="docs/Tesla_BalanceSheet_20250331.pdf" />
+  </Folder>
   <Project Path="StructuredOcr/StructuredOcr.csproj" />
 </Solution>
