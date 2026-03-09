@@ -11,7 +11,9 @@
 ![Home](docs/screenshots/home.png)
 
 ### Document Analysis
-![Analyze](docs/screenshots/analyze.png)
+![Analyze](https://github.com/user-attachments/assets/a4d1cac6-d9ed-41b1-9a80-655ac13c7df5)
+
+![Analyze2](https://github.com/user-attachments/assets/32dd6d54-1c1b-48b4-99e8-91d963cc8a19)
 
 ### Schema Editor
 ![Schemas](docs/screenshots/schemas.png)
