@@ -73,7 +73,7 @@ The app includes a built-in cost estimator based on published pay-as-you-go pric
 
 ### Prerequisites
 
-- [.NET 10 Preview SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+- [.NET 10](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 - An Azure subscription with at least one of the supported services deployed
 - API keys / endpoints for the services you want to test
 
@@ -166,7 +166,7 @@ The app ships with three predefined finance schemas to get you started:
 
 ## Tech Stack
 
-- **Framework:** .NET 10 Preview, Blazor Server (Interactive Server rendering)
+- **Framework:** .NET 10, Blazor Server (Interactive Server rendering)
 - **UI:** [Blazor Blueprint](https://blazorblueprintui.com/) (shadcn/ui for Blazor) with Lucide icons and OKLCH theming
 - **Azure SDKs:** `Azure.AI.ContentUnderstanding`, Azure OpenAI REST API, Mistral REST API
 
