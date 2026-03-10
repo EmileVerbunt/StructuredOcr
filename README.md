@@ -1,6 +1,6 @@
 # Structured OCR Benchmark
 
-[![.NET](https://img.shields.io/badge/.NET-10%20Preview-512bd4)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-10)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Compare structured data extraction across Azure OCR and LLM services — side by side, with customizable schemas and cost estimates.**
